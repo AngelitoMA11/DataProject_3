@@ -1,0 +1,37 @@
+name: Validaciones de Python
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descarga todo el código
+        uses: actions/checkout@v3
+
+      - name: Configura Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Ejecutar análisis de estilo (flake8)
+        run: flake8 .
+
+      - name: Ejecutar scripts Python (excepto .github, venv, tests)
+        run: |
+          for archivo in $(find . -name "*.py" \
+            ! -path "./tests/*" \
+            ! -path "./venv/*" \
+            ! -path "./.github/*"); do
+            echo "Ejecutando $archivo"
+            python "$archivo"
+          done
