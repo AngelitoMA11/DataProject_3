@@ -12,7 +12,7 @@ rooms = 1
 currency = "EUR"
 
 # API RapidAPI
-RAPIDAPI_KEY = "017cb5a280msh6eb35e40c0a8d85p1c66a5jsn09a0cfa0a3b0"
+RAPIDAPI_KEY = "xx"
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 headers = {
     'x-rapidapi-key': RAPIDAPI_KEY,
