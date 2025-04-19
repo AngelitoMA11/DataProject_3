@@ -1,94 +1,107 @@
-import http.client
-import urllib.parse
-import json
 import streamlit as st
 from datetime import date
+import sys
+import os
+import json
 
-# === CONFIGURACIÓN DE ACCESO A LA API ===
-RAPIDAPI_KEY = ""
-RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
+# Añadir el directorio actual al path para importar
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-headers = {
-    'x-rapidapi-key': RAPIDAPI_KEY,
-    'x-rapidapi-host': RAPIDAPI_HOST
-}
-
-def obtener_id_ciudad(nombre_ciudad):
-    conn = http.client.HTTPSConnection(RAPIDAPI_HOST)
-    query = urllib.parse.quote(nombre_ciudad)
-    conn.request("GET", f"/api/v1/flights/searchDestination?query={query}", headers=headers)
-    data = json.loads(conn.getresponse().read().decode("utf-8"))
-    
-    for destino in data.get("data", []):
-        if "AIRPORT" in destino["type"]:
-            return destino["id"]
-    return None
-
-def buscar_vuelos(from_city, to_city, depart_date, return_date, stops, adults, children, cabin_class, currency):
-    # Obtener los IDs de los aeropuertos
-    from_id = obtener_id_ciudad(from_city)
-    to_id = obtener_id_ciudad(to_city)
-    
-    if not from_id or not to_id:
-        st.error("❌ No se encontró el ID de aeropuerto para alguna de las ciudades.")
-        return None
-
-    # Construir los parámetros para la consulta
-    params = {
-        "fromId": from_id,
-        "toId": to_id,
-        "departDate": depart_date,
-        "stops": stops,
-        "pageNo": "1",
-        "adults": str(adults),
-        "children": children,
-        "cabinClass": cabin_class,
-        "currency_code": currency
-    }
-    if return_date:
-        params["returnDate"] = return_date
-
-    query_string = urllib.parse.urlencode(params)
-    endpoint = f"/api/v1/flights/searchFlights?{query_string}"
-
-    # Realizar la petición a la API
-    conn = http.client.HTTPSConnection(RAPIDAPI_HOST)
-    conn.request("GET", endpoint, headers=headers)
-    respuesta = conn.getresponse().read().decode("utf-8")
-    vuelos = json.loads(respuesta)
-    
-    return vuelos
+from hotel_raul import buscar_destino_hotel, buscar_hoteles, guardar_json
 
 # --- Interfaz de Streamlit ---
-st.title("Buscador de Vuelos")
+st.title("Buscador de Hoteles")
 
-with st.form("flight_search_form"):
-    # Entradas para las ciudades y fechas
-    ciudad_origen = st.text_input("Ciudad de origen", "Valencia")
-    ciudad_destino = st.text_input("Ciudad de destino", "London")
+with st.form("hotel_search_form"):
+    # Entradas para la búsqueda de hoteles
+    ciudad_destino = st.text_input("Ciudad", "London")
+    fecha_entrada = st.date_input("Fecha de llegada", date.today())
     fecha_salida = st.date_input("Fecha de salida", date.today())
-    fecha_vuelta = st.date_input("Fecha de vuelta (opcional)", date.today(), help="Si es viaje de ida y vuelta, selecciona la fecha. Si no, ignora este campo.")
-
+    
     # Otras opciones
-    stops = st.selectbox("Paradas", options=["none", "0", "1", "2"], index=0)
-    adults = st.number_input("Número de adultos", min_value=1, value=1)
-    children = st.text_input("Niños (edades separadas por comas o '0' si ninguno)", "0")
-    cabin_class = st.selectbox("Clase", options=["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], index=0)
-    currency = st.text_input("Moneda", "EUR")
-
-    submitted = st.form_submit_button("Buscar vuelos")
+    adultos = st.number_input("Número de adultos", min_value=1, value=1)
+    habitaciones = st.number_input("Número de habitaciones", min_value=1, value=1)
+    
+    submitted = st.form_submit_button("Buscar hoteles")
 
 if submitted:
-    # Convertir las fechas a cadena con formato YYYY-MM-DD
-    depart_date_str = fecha_salida.strftime("%Y-%m-%d")
-    # Se puede interpretar la fecha de vuelta como opcional
-    return_date_str = fecha_vuelta.strftime("%Y-%m-%d") if fecha_vuelta and fecha_vuelta != fecha_salida else None
-
-    st.info("Consultando vuelos...")
-    vuelos = buscar_vuelos(ciudad_origen, ciudad_destino, depart_date_str, return_date_str, stops, adults, children, cabin_class, currency)
+    # Convertir fechas a cadena con formato YYYY-MM-DD
+    fecha_entrada_str = fecha_entrada.strftime("%Y-%m-%d")
+    fecha_salida_str = fecha_salida.strftime("%Y-%m-%d")
     
-    if vuelos:
-        st.success("Resultados obtenidos:")
-        st.json(vuelos)
+    # Modificar variables globales en hotel_raul.py
+    import hotel_raul
+    hotel_raul.ciudad_destino = ciudad_destino
+    hotel_raul.fecha_entrada = fecha_entrada_str
+    hotel_raul.fecha_salida = fecha_salida_str
+    hotel_raul.adults = adultos
+    hotel_raul.rooms = habitaciones
+    
+    # Primero buscar el ID del destino
+    st.info("Buscando destino...")
+    dest_id, search_type = buscar_destino_hotel(ciudad_destino)
+    
+    if dest_id:
+        st.info("Consultando hoteles...")
+        
+        # Buscar hoteles
+        hoteles = buscar_hoteles(dest_id, search_type)
+        
+        if hoteles:
+            # Guardar JSON
+            guardar_json(hoteles, "hoteles_resultados.json")
+            
+            # Mostrar resultados
+            st.success("Hoteles encontrados:")
+            
+            # Depuración: imprimir estructura completa de hoteles
+            st.write("Estructura de datos completa:")
+            st.json(hoteles)
+            
+            # Extraer hoteles de manera más robusta
+            hoteles_info = []
+            
+            # Intentar diferentes formas de acceder a los hoteles
+            try:
+                # Método 1: Acceso directo
+                lista_hoteles = hoteles.get('data', {}).get('hotels', [])
+                
+                # Si lista_hoteles está vacía, intentar otros métodos
+                if not lista_hoteles:
+                    # Método 2: Acceso a través de 'property'
+                    lista_hoteles = [h.get('property', {}) for h in hoteles.get('data', {}).get('hotels', [])]
+            
+            except Exception as e:
+                st.error(f"Error al procesar hoteles: {e}")
+                lista_hoteles = []
+            
+            # Procesar lista de hoteles
+            for hotel in lista_hoteles:
+                try:
+                    # Intentar diferentes formas de extraer información
+                    nombre = hotel.get('name') or hotel.get('hotel_name', 'N/A')
+                    
+                    # Extraer precio
+                    precio_info = hotel.get('priceBreakdown', {}).get('grossPrice', {})
+                    precio = f"{precio_info.get('value', 'N/A')} {precio_info.get('currency', '')}"
+                    
+                    # Extraer puntuación
+                    puntuacion = hotel.get('reviewScore', 'N/A')
+                    
+                    hoteles_info.append({
+                        'Nombre': nombre,
+                        'Precio': precio,
+                        'Puntuación': puntuacion
+                    })
+                except Exception as e:
+                    st.warning(f"No se pudo procesar un hotel: {e}")
+            
+            # Mostrar tabla de hoteles
+            if hoteles_info:
+                st.table(hoteles_info)
+            else:
+                st.warning("No se pudo extraer información de los hoteles.")
+        else:
+            st.error("No se encontraron hoteles.")
     else:
-        st.error("No se pudieron obtener resultados. Verifica que los datos ingresados sean correctos.")
+        st.error("No se pudo encontrar el destino.")
