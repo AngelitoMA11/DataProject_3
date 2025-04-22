@@ -34,3 +34,8 @@ tornado==6.4.2
 typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
+fastapi
+pydantic
+httpx
+uvicorn
+streamlit
