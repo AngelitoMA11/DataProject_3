@@ -1,0 +1,20 @@
+{
+    "destino": "London",
+    "fechas": {
+        "salida": "2025-04-24",
+        "regreso": "2025-04-27"
+    },
+    "viajeros": {
+        "adultos": 1,
+        "ni\u00f1os": "No hay ni\u00f1os"
+    },
+    "moneda": "EUR",
+    "vuelos": {
+        "origen": "Madrid",
+        "escalas_max": "none",
+        "clase": "ECONOMY"
+    },
+    "hoteles": {
+        "habitaciones": 1
+    }
+}
