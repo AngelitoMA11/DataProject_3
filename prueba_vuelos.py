@@ -3,9 +3,9 @@ import urllib.parse
 import json
 
 # === CONFIGURACIÓN DEL USUARIO ===
-ciudad_origen = "Alicante"
-ciudad_destino = "London"
-fecha_salida = "2025-04-17"
+ciudad_origen = "valencia"
+ciudad_destino = "Barcelona"
+fecha_salida = "2025-04-20"
 fecha_vuelta = None  # Ejemplo: "2025-04-24"
 
 stops = "none"  # Opciones: "none", "0", "1", "2"
@@ -14,7 +14,7 @@ children = "1"  # Ejemplo: "3,7" o "0" si no hay niños
 cabin_class = "ECONOMY"  # ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
 currency = "EUR"
 
-RAPIDAPI_KEY = ""
+RAPIDAPI_KEY = "9630d11b3dmshc21bd0426b9a53cp153093jsn46cfb50160a1"
 RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"
 
 headers = {
@@ -34,14 +34,14 @@ def obtener_id_ciudad(nombre_ciudad):
     return None
 
 # Obtener los IDs de origen y destino
-from_id = obtener_id_ciudad(ciudad_origen)
-to_id = obtener_id_ciudad(ciudad_destino)
+salida = obtener_id_ciudad(ciudad_origen)
+llegada = obtener_id_ciudad(ciudad_destino)
 
 # Construir endpoint para buscar vuelos
 conn = http.client.HTTPSConnection(RAPIDAPI_HOST)
 params = {
-    "fromId": from_id,
-    "toId": to_id,
+    "fromId": salida,
+    "toId": llegada,
     "departDate": fecha_salida,
     "stops": stops,
     "pageNo": "1",
