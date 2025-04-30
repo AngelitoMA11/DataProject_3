@@ -1,0 +1,8 @@
+project_id      = "dataproject3-458310"
+region          = "europe-west1"
+zone            = "europe-west1-b"
+topic_vuelos    = "vuelos"
+topic_hoteles   = "hoteles"
+sub_vuelos      = "vuelos-sub"
+sub_hoteles     = "hoteles-sub"
+bq_dataset      = "dataflow_matches"
