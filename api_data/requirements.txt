@@ -1,5 +1,7 @@
 fastapi
 uvicorn
-# langgraph
-# pydantic
-# httpx
+pydantic
+httpx
+streamlit
+requests
+google-cloud-pubsub
