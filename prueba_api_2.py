@@ -64,6 +64,8 @@ def construir_parametros_api_vuelo(req: VueloRequest, origin_id: str, destinatio
         params["returnDate"] = req.fecha_vuelta
     return params
 
+
+
 # === Búsqueda de destino para hoteles ===
 async def buscar_destino_hotel(client: httpx.AsyncClient, nombre_ciudad):
     query = urllib.parse.quote(nombre_ciudad)
