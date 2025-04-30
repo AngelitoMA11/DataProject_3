@@ -1,5 +1,7 @@
 import requests
 from langchain_core.tools import tool
+from config import DATA_API_URL
+
 
 @tool
 def search_flights(
@@ -18,7 +20,7 @@ def search_flights(
     Devuelve una lista de dicts con precio total, aerolínea, horario
     y URL de reserva.
     """
-    url = "http://api_data:8001/search_flights"
+    url = f"{DATA_API_URL}/vuelos"
     params = {
         "ciudad_origen": ciudad_origen,
         "ciudad_destino": ciudad_destino,

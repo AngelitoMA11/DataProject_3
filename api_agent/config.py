@@ -1,5 +1,7 @@
 import os
 
+DATA_API_URL = "http://api_data:8001"
+
 DATABASE_URL = "sqlite:///./database.db"
 API_VERSION = "v1"
 DEBUG_MODE = True
