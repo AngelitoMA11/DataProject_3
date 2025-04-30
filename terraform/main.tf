@@ -1,3 +1,11 @@
+terraform {
+  backend "gcs" {
+    bucket  = "terraform-state-viajes"
+    prefix  = "estado/terraform.tfstate"
+  }
+}
+
+
 module "pubsub" {
   source         = "./module/pubsub"
   project_id     = var.project_id
@@ -7,14 +15,13 @@ module "pubsub" {
   ]
 }
 
-# module "bigquery" {
-#   source     = "./module/bigquery"
-#   project_id = var.project_id
-#   bq_dataset = var.bq_dataset
+module "bigquery" {
+  source     = "./module/bigquery"
+  project_id = var.project_id
+  bq_dataset = var.bq_dataset
   
-#   tables = [
-#     { name = "match", schema = "schemas/match.json" },
-#     { name = "no_match_voluntarios", schema = "schemas/no_match_voluntarios.json" },
-#     { name = "no_matches_solicitudes", schema = "schemas/no_matches_solicitudes.json" }
-#   ]
-# }
+  tables = [
+    { name = "vuelos", schema = "schemas/vuelos.json" },
+    { name = "hoteles", schema = "schemas/hoteles.json" }
+  ]
+}
