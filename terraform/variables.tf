@@ -18,22 +18,24 @@ variable "topic_vuelos" {
   type        = string
 }
 
-variable "sub_vuelos" {
-  description = "Nombre de la suscripción de requests."
-  type        = string
-}
-
 variable "topic_hoteles" {
   description = "Nombre del tópico de helpers."
   type        = string
 }
 
-variable "sub_hoteles" {
-  description = "Nombre de la suscripción de helpers."
-  type        = string
-}
 
 variable "bq_dataset" {
   description = "Nombre del dataset de BigQuery."
   type        = string
 }
+
+variable "table_vuelos" {
+  description = "Nombre de la tabla de vuelos."
+  type        = string
+}
+
+variable "table_hoteles" {
+  description = "Nombre de la tabla de hoteles."
+  type        = string
+}
+

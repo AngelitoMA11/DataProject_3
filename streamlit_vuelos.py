@@ -55,7 +55,4 @@ with st.form("formulario_configuracion"):
 
         response = requests.post(url_api, json=config)
         if response.status_code == 200:
-            st.subheader("Resultados encontrados:")
-            st.json(response.json())
-        else:
             st.error(f"Error al buscar vuelos y hoteles: {response.status_code}")
