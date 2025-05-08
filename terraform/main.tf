@@ -17,16 +17,17 @@ module "bigquery" {
   ]
 }
 
-module "function_vuelos" {
-  source = "./module/function"
+
+module "function_hoteles" {
+  source = "./module/function_hoteles"
   project_id     = var.project_id
   region         = var.region
-  name           = "vuelos"
-  entry_point    = "limpieza_vuelos"
-  topic          = var.topic_vuelos
+  name           = "hoteles"
+  entry_point    = "limpieza_hoteles"
+  topic          = var.topic_hoteles
   env_variables  = {
     PROJECT_ID = var.project_id
     DATASET    = var.bq_dataset
-    TABLE      = var.table_vuelos
+    TABLE      = var.table_hoteles
   }
 }
