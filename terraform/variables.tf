@@ -23,6 +23,10 @@ variable "topic_hoteles" {
   type        = string
 }
 
+variable "topic_coches" {
+  description = "Nombre del tópico de helpers."
+  type        = string
+}
 
 variable "bq_dataset" {
   description = "Nombre del dataset de BigQuery."
@@ -38,4 +42,10 @@ variable "table_hoteles" {
   description = "Nombre de la tabla de hoteles."
   type        = string
 }
+
+variable "table_coches" {
+  description = "Nombre de la tabla de coches."
+  type        = string
+}
+
 
