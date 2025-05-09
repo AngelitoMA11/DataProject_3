@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
-from agents.agent import process_message
+from utils.graph import process_message
 
 app = FastAPI()
 
