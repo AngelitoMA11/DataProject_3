@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+# import google.generativeai as genai
 import json
 import re
 from typing import TypedDict, Annotated, List, Union, Type, Any
@@ -73,281 +73,281 @@ Una vez que el usuario haya elegido un **destino específico y confirmado**, y S
 -   **Formato del Resumen Final:** El resumen final DEBE seguir el formato especificado con exactitud.
 """
 
-# --- LangGraph State Definition for TravelAgentLangGraph ---
-class TravelAgentState(TypedDict):
-    messages: Annotated[List[BaseMessage], lambda x, y: x + y]
-    user_input: str
-    api_configured: bool
-    summary_detected: bool
-    extracted_data: dict
-    final_answer_generated: bool
+# # --- LangGraph State Definition for TravelAgentLangGraph ---
+# class TravelAgentState(TypedDict):
+#     messages: Annotated[List[BaseMessage], lambda x, y: x + y]
+#     user_input: str
+#     api_configured: bool
+#     summary_detected: bool
+#     extracted_data: dict
+#     final_answer_generated: bool
 
-# --- Travel Agent Class (Sub-Agent Logic) ---
-class TravelAgentLangGraph:
-    INITIAL_GREETING = "¡Hola! Soy tu Explorador de Destinos 🧭. ¿Tienes ganas de viajar pero no sabes dónde? ¡Estás en el lugar correcto! Cuéntame un poco qué te apetece: ¿relax total 🏖️, aventura pura 🧗‍♀️, sumergirte en otra cultura 🏛️, probar sabores nuevos 🍜...? ¡Vamos a descubrirlo juntos!"
+# # --- Travel Agent Class (Sub-Agent Logic) ---
+# class TravelAgentLangGraph:
+#     INITIAL_GREETING = "¡Hola! Soy tu Explorador de Destinos 🧭. ¿Tienes ganas de viajar pero no sabes dónde? ¡Estás en el lugar correcto! Cuéntame un poco qué te apetece: ¿relax total 🏖️, aventura pura 🧗‍♀️, sumergirte en otra cultura 🏛️, probar sabores nuevos 🍜...? ¡Vamos a descubrirlo juntos!"
 
-    def __init__(self, api_key: str, system_prompt: str, session_id: str = "default_travel_session"):
-        self.api_key = api_key
-        self.system_prompt = system_prompt
-        self.session_id = session_id
-        self.llm_model = None
-        self.app = None
-        self.current_state: TravelAgentState = self._get_initial_state()
+#     def __init__(self, api_key: str, system_prompt: str, session_id: str = "default_travel_session"):
+#         self.api_key = api_key
+#         self.system_prompt = system_prompt
+#         self.session_id = session_id
+#         self.llm_model = None
+#         self.app = None
+#         self.current_state: TravelAgentState = self._get_initial_state()
 
-        self._initialize_llm() # Esto puede lanzar una excepción si falla
-        self._build_graph()
-        print(f"[TravelAgent {self.session_id}] Initialized and graph built.")
+#         self._initialize_llm() # Esto puede lanzar una excepción si falla
+#         self._build_graph()
+#         print(f"[TravelAgent {self.session_id}] Initialized and graph built.")
 
-    def _get_initial_state(self) -> TravelAgentState:
-        return {
-            "messages": [AIMessage(content=self.INITIAL_GREETING)],
-            "user_input": "",
-            "api_configured": False,
-            "summary_detected": False,
-            "extracted_data": {},
-            "final_answer_generated": False
-        }
+#     def _get_initial_state(self) -> TravelAgentState:
+#         return {
+#             "messages": [AIMessage(content=self.INITIAL_GREETING)],
+#             "user_input": "",
+#             "api_configured": False,
+#             "summary_detected": False,
+#             "extracted_data": {},
+#             "final_answer_generated": False
+#         }
 
-    def reset_state(self):
-        print(f"[TravelAgent {self.session_id}] Resetting state.")
-        self.current_state = self._get_initial_state()
+#     def reset_state(self):
+#         print(f"[TravelAgent {self.session_id}] Resetting state.")
+#         self.current_state = self._get_initial_state()
 
-    def _initialize_llm(self):
-        if not self.api_key or self.api_key == "YOUR_FALLBACK_API_KEY":
-            self.current_state["api_configured"] = False
-            raise ValueError(f"[TravelAgent {self.session_id} ERROR] API Key not provided or is a placeholder.")
-        try:
-            genai.configure(api_key=self.api_key)
-            self.llm_model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                safety_settings={
-                    'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-                    'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-                    'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
-                    'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-                },
-                system_instruction=self.system_prompt
-            )
-            self.current_state["api_configured"] = True
-        except Exception as e:
-            self.llm_model = None
-            self.current_state["api_configured"] = False
-            raise ConnectionError(f"[TravelAgent {self.session_id} ERROR] Error configuring Gemini API or Model: {e}") from e
+#     def _initialize_llm(self):
+#         if not self.api_key or self.api_key == "YOUR_FALLBACK_API_KEY":
+#             self.current_state["api_configured"] = False
+#             raise ValueError(f"[TravelAgent {self.session_id} ERROR] API Key not provided or is a placeholder.")
+#         try:
+#             genai.configure(api_key=self.api_key)
+#             self.llm_model = genai.GenerativeModel(
+#                 model_name="gemini-1.5-flash",
+#                 safety_settings={
+#                     'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+#                     'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+#                     'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
+#                     'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+#                 },
+#                 system_instruction=self.system_prompt
+#             )
+#             self.current_state["api_configured"] = True
+#         except Exception as e:
+#             self.llm_model = None
+#             self.current_state["api_configured"] = False
+#             raise ConnectionError(f"[TravelAgent {self.session_id} ERROR] Error configuring Gemini API or Model: {e}") from e
 
-    @staticmethod
-    def _extract_travel_info(text: str) -> dict:
-        data = {
-            "origin": "", "destination": "", "departure_date": "", "arrival_date": "",
-            "viajeros": "", "presupuesto": "", "intereses": "", "correo": "",
-            "telefono": "", "sola_ciudad": ""
-        }
-        patterns = {
-            "origin": r"Origen:\s*(.+?)(?:\n|$)", "destination": r"Destino:\s*(.+?)(?:\n|$)",
-            "departure_date": r"Fecha de salida:\s*(.+?)(?:\n|$)", "arrival_date": r"Fecha de regreso:\s*(.+?)(?:\n|$)",
-            "viajeros": r"Viajeros:\s*(.+?)(?:\n|$)", "presupuesto": r"Presupuesto:\s*(.+?)(?:\n|$)",
-            "intereses": r"Intereses:\s*(.+?)(?:\n|$)", "correo": r"Correo:\s*(.+?)(?:\n|$)",
-            "telefono": r"Teléfono:\s*(.+?)(?:\n|$)", "sola_ciudad": r"¿Solo una ciudad\??:\s*(.+?)(?:\n|$)"
-        }
-        for field, pattern in patterns.items():
-            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if match: data[field] = match.group(1).strip()
-        return data
+#     @staticmethod
+#     def _extract_travel_info(text: str) -> dict:
+#         data = {
+#             "origin": "", "destination": "", "departure_date": "", "arrival_date": "",
+#             "viajeros": "", "presupuesto": "", "intereses": "", "correo": "",
+#             "telefono": "", "sola_ciudad": ""
+#         }
+#         patterns = {
+#             "origin": r"Origen:\s*(.+?)(?:\n|$)", "destination": r"Destino:\s*(.+?)(?:\n|$)",
+#             "departure_date": r"Fecha de salida:\s*(.+?)(?:\n|$)", "arrival_date": r"Fecha de regreso:\s*(.+?)(?:\n|$)",
+#             "viajeros": r"Viajeros:\s*(.+?)(?:\n|$)", "presupuesto": r"Presupuesto:\s*(.+?)(?:\n|$)",
+#             "intereses": r"Intereses:\s*(.+?)(?:\n|$)", "correo": r"Correo:\s*(.+?)(?:\n|$)",
+#             "telefono": r"Teléfono:\s*(.+?)(?:\n|$)", "sola_ciudad": r"¿Solo una ciudad\??:\s*(.+?)(?:\n|$)"
+#         }
+#         for field, pattern in patterns.items():
+#             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+#             if match: data[field] = match.group(1).strip()
+#         return data
 
-    @staticmethod
-    def _save_to_json(data: dict, filename_prefix="travel_data_langgraph"):
-        filename = f"{filename_prefix}_{data.get('session_id', 'unknown_session')}.json"
-        try:
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
-            print(f"\n[TravelAgent INFO] Datos del viaje guardados en '{filename}'")
-            return True
-        except Exception as e:
-            print(f"\n[TravelAgent ERROR] No se pudo guardar en JSON: {e}")
-            return False
+#     @staticmethod
+#     def _save_to_json(data: dict, filename_prefix="travel_data_langgraph"):
+#         filename = f"{filename_prefix}_{data.get('session_id', 'unknown_session')}.json"
+#         try:
+#             with open(filename, "w", encoding="utf-8") as f:
+#                 json.dump(data, f, indent=4, ensure_ascii=False)
+#             print(f"\n[TravelAgent INFO] Datos del viaje guardados en '{filename}'")
+#             return True
+#         except Exception as e:
+#             print(f"\n[TravelAgent ERROR] No se pudo guardar en JSON: {e}")
+#             return False
 
-    def explorador_node(self, state: TravelAgentState) -> dict:
-        if not self.llm_model: return {"messages": [AIMessage(content="Error: LLM no inicializado en TravelAgent.")]}
-        current_messages = state["messages"]
-        history_for_gemini = [{'role': 'user' if isinstance(m, HumanMessage) else 'model', 'parts': [m.content]}
-                              for m in current_messages if not isinstance(m, SystemMessage)]
-        try:
-            chat_session = self.llm_model.start_chat(history=history_for_gemini[:-1] if len(history_for_gemini) > 1 else [])
-            response = chat_session.send_message(history_for_gemini[-1]['parts'] if history_for_gemini else "ayúdame a planificar un viaje")
-            ai_response_text = response.text
-        except Exception as e:
-            print(f"[TravelAgent {self.session_id} ERROR] en explorador_node: {e}")
-            ai_response_text = "Uff, parece que mis mapas mentales se mezclaron un poco. ¿Podrías repetirme eso?"
-        required_fields = ["Origen:", "Destino:", "Fecha de salida:", "Fecha de regreso:", "Viajeros:", "Presupuesto:", "Intereses:", "Correo:", "Teléfono:", "¿Solo una ciudad?"]
-        summary_detected_flag = sum(1 for field in required_fields if field.lower() in ai_response_text.lower()) >= 8
-        return {"messages": [AIMessage(content=ai_response_text)], "summary_detected": summary_detected_flag}
+#     def explorador_node(self, state: TravelAgentState) -> dict:
+#         if not self.llm_model: return {"messages": [AIMessage(content="Error: LLM no inicializado en TravelAgent.")]}
+#         current_messages = state["messages"]
+#         history_for_gemini = [{'role': 'user' if isinstance(m, HumanMessage) else 'model', 'parts': [m.content]}
+#                               for m in current_messages if not isinstance(m, SystemMessage)]
+#         try:
+#             chat_session = self.llm_model.start_chat(history=history_for_gemini[:-1] if len(history_for_gemini) > 1 else [])
+#             response = chat_session.send_message(history_for_gemini[-1]['parts'] if history_for_gemini else "ayúdame a planificar un viaje")
+#             ai_response_text = response.text
+#         except Exception as e:
+#             print(f"[TravelAgent {self.session_id} ERROR] en explorador_node: {e}")
+#             ai_response_text = "Uff, parece que mis mapas mentales se mezclaron un poco. ¿Podrías repetirme eso?"
+#         required_fields = ["Origen:", "Destino:", "Fecha de salida:", "Fecha de regreso:", "Viajeros:", "Presupuesto:", "Intereses:", "Correo:", "Teléfono:", "¿Solo una ciudad?"]
+#         summary_detected_flag = sum(1 for field in required_fields if field.lower() in ai_response_text.lower()) >= 8
+#         return {"messages": [AIMessage(content=ai_response_text)], "summary_detected": summary_detected_flag}
 
-    def extract_data_node(self, state: TravelAgentState) -> dict:
-        if state["summary_detected"]:
-            extracted = self._extract_travel_info(state["messages"][-1].content)
-            if not extracted.get("destination") or extracted.get("destination", "").lower() in ["aún por decidir", "un lugar cálido", ""]:
-                return {"extracted_data": extracted, "final_answer_generated": False, "summary_detected": False}
-            return {"extracted_data": extracted, "final_answer_generated": True}
-        return {"extracted_data": state.get("extracted_data", {}), "final_answer_generated": False}
+#     def extract_data_node(self, state: TravelAgentState) -> dict:
+#         if state["summary_detected"]:
+#             extracted = self._extract_travel_info(state["messages"][-1].content)
+#             if not extracted.get("destination") or extracted.get("destination", "").lower() in ["aún por decidir", "un lugar cálido", ""]:
+#                 return {"extracted_data": extracted, "final_answer_generated": False, "summary_detected": False}
+#             return {"extracted_data": extracted, "final_answer_generated": True}
+#         return {"extracted_data": state.get("extracted_data", {}), "final_answer_generated": False}
 
-    def save_data_node(self, state: TravelAgentState) -> dict:
-        if state["final_answer_generated"] and state["extracted_data"].get("destination"):
-            data_to_save = state["extracted_data"].copy()
-            data_to_save["session_id"] = self.session_id
-            self._save_to_json(data_to_save)
-        return {}
+#     def save_data_node(self, state: TravelAgentState) -> dict:
+#         if state["final_answer_generated"] and state["extracted_data"].get("destination"):
+#             data_to_save = state["extracted_data"].copy()
+#             data_to_save["session_id"] = self.session_id
+#             self._save_to_json(data_to_save)
+#         return {}
 
-    def should_continue_or_extract(self, state: TravelAgentState) -> str:
-        return "extract_data" if state["summary_detected"] else "continue_chat"
+#     def should_continue_or_extract(self, state: TravelAgentState) -> str:
+#         return "extract_data" if state["summary_detected"] else "continue_chat"
 
-    def should_save_or_end(self, state: TravelAgentState) -> str:
-        return "save_data" if state["final_answer_generated"] and state["extracted_data"].get("destination") else END
+#     def should_save_or_end(self, state: TravelAgentState) -> str:
+#         return "save_data" if state["final_answer_generated"] and state["extracted_data"].get("destination") else END
 
-    def _build_graph(self):
-        workflow = StateGraph(TravelAgentState)
-        workflow.add_node("explorador", self.explorador_node)
-        workflow.add_node("extract_data", self.extract_data_node)
-        workflow.add_node("save_data", self.save_data_node)
-        workflow.set_entry_point("explorador")
-        workflow.add_conditional_edges("explorador", self.should_continue_or_extract, {"extract_data": "extract_data", "continue_chat": END})
-        workflow.add_conditional_edges("extract_data", self.should_save_or_end, {"save_data": "save_data", END: END})
-        workflow.add_edge("save_data", END)
-        self.app = workflow.compile()
+#     def _build_graph(self):
+#         workflow = StateGraph(TravelAgentState)
+#         workflow.add_node("explorador", self.explorador_node)
+#         workflow.add_node("extract_data", self.extract_data_node)
+#         workflow.add_node("save_data", self.save_data_node)
+#         workflow.set_entry_point("explorador")
+#         workflow.add_conditional_edges("explorador", self.should_continue_or_extract, {"extract_data": "extract_data", "continue_chat": END})
+#         workflow.add_conditional_edges("extract_data", self.should_save_or_end, {"save_data": "save_data", END: END})
+#         workflow.add_edge("save_data", END)
+#         self.app = workflow.compile()
 
-    def get_initial_greeting(self) -> str:
-        return self.current_state["messages"][0].content if self.current_state["messages"] else self.INITIAL_GREETING
+#     def get_initial_greeting(self) -> str:
+#         return self.current_state["messages"][0].content if self.current_state["messages"] else self.INITIAL_GREETING
 
-    def is_conversation_finished(self) -> bool:
-        return self.current_state["final_answer_generated"] and bool(self.current_state["extracted_data"].get("destination"))
+#     def is_conversation_finished(self) -> bool:
+#         return self.current_state["final_answer_generated"] and bool(self.current_state["extracted_data"].get("destination"))
 
-    def get_final_data(self) -> dict:
-        return self.current_state["extracted_data"] if self.is_conversation_finished() else {}
+#     def get_final_data(self) -> dict:
+#         return self.current_state["extracted_data"] if self.is_conversation_finished() else {}
 
-    def process_user_input(self, user_input_text: str) -> str:
-        if not self.current_state["api_configured"] or not self.app:
-            return "Lo siento, el subagente de viajes no está configurado correctamente (API o grafo)."
-        if self.is_conversation_finished():
-             print(f"[TravelAgent {self.session_id}] WARN: process_user_input llamado después de finalizar. Agente reseteado.")
-             self.reset_state() # Resetear si se llama después de finalizar
+#     def process_user_input(self, user_input_text: str) -> str:
+#         if not self.current_state["api_configured"] or not self.app:
+#             return "Lo siento, el subagente de viajes no está configurado correctamente (API o grafo)."
+#         if self.is_conversation_finished():
+#              print(f"[TravelAgent {self.session_id}] WARN: process_user_input llamado después de finalizar. Agente reseteado.")
+#              self.reset_state() # Resetear si se llama después de finalizar
 
-        self.current_state["messages"].append(HumanMessage(content=user_input_text))
-        updated_state_values = self.app.invoke({"messages": self.current_state["messages"]})
-        self.current_state.update(updated_state_values)
-        ai_response = self.current_state["messages"][-1].content
-        return ai_response if ai_response.strip() else "No he obtenido respuesta del explorador. ¿Intentamos otra cosa?"
+#         self.current_state["messages"].append(HumanMessage(content=user_input_text))
+#         updated_state_values = self.app.invoke({"messages": self.current_state["messages"]})
+#         self.current_state.update(updated_state_values)
+#         ai_response = self.current_state["messages"][-1].content
+#         return ai_response if ai_response.strip() else "No he obtenido respuesta del explorador. ¿Intentamos otra cosa?"
 
-# --- LangChain Tool Definition ---
-class TravelPlannerInput(BaseModel):
-    user_query: str = Field(description="La consulta o respuesta más reciente del usuario relacionada con la planificación del viaje.")
+# # --- LangChain Tool Definition ---
+# class TravelPlannerInput(BaseModel):
+#     user_query: str = Field(description="La consulta o respuesta más reciente del usuario relacionada con la planificación del viaje.")
 
-class TravelPlannerTool(BaseTool):
-    name: str = "travel_planner_tool"
-    description: str = (
-        "Útil para ayudar a los usuarios a planificar viajes completos, desde la elección del destino hasta la recopilación de todos los detalles. "
-        "Esta herramienta iniciará y gestionará una conversación interactiva con el usuario. "
-        "Debes usar esta herramienta cuando el usuario quiera 'planificar un viaje', 'buscar un destino de vacaciones', 'organizar una escapada', o similar. "
-        "Pasa la consulta completa y más reciente del usuario a esta herramienta. "
-        "La herramienta devolverá la respuesta del asistente de viajes para mostrarla al usuario. "
-        "Si la planificación del viaje está completa, la respuesta lo indicará y contendrá un resumen final."
-    )
-    args_schema: Type[BaseModel] = TravelPlannerInput
-    _travel_agent_instance: TravelAgentLangGraph = None
-    _session_id_for_agent: str = None # Para identificar la sesión del agente interno
+# class TravelPlannerTool(BaseTool):
+#     name: str = "travel_planner_tool"
+#     description: str = (
+#         "Útil para ayudar a los usuarios a planificar viajes completos, desde la elección del destino hasta la recopilación de todos los detalles. "
+#         "Esta herramienta iniciará y gestionará una conversación interactiva con el usuario. "
+#         "Debes usar esta herramienta cuando el usuario quiera 'planificar un viaje', 'buscar un destino de vacaciones', 'organizar una escapada', o similar. "
+#         "Pasa la consulta completa y más reciente del usuario a esta herramienta. "
+#         "La herramienta devolverá la respuesta del asistente de viajes para mostrarla al usuario. "
+#         "Si la planificación del viaje está completa, la respuesta lo indicará y contendrá un resumen final."
+#     )
+#     args_schema: Type[BaseModel] = TravelPlannerInput
+#     _travel_agent_instance: TravelAgentLangGraph = None
+#     _session_id_for_agent: str = None # Para identificar la sesión del agente interno
 
-    def _init_agent(self, tool_session_id: str = None):
-        # Si no se provee un tool_session_id, genera uno para esta instancia de la herramienta
-        current_tool_session = tool_session_id or self._session_id_for_agent or f"tool_instance_{id(self)}"
+#     def _init_agent(self, tool_session_id: str = None):
+#         # Si no se provee un tool_session_id, genera uno para esta instancia de la herramienta
+#         current_tool_session = tool_session_id or self._session_id_for_agent or f"tool_instance_{id(self)}"
 
-        if self._travel_agent_instance is None or \
-           self._session_id_for_agent != current_tool_session or \
-           self._travel_agent_instance.is_conversation_finished():
+#         if self._travel_agent_instance is None or \
+#            self._session_id_for_agent != current_tool_session or \
+#            self._travel_agent_instance.is_conversation_finished():
 
-            if self._travel_agent_instance and self._travel_agent_instance.is_conversation_finished():
-                print(f"[Tool] Agente de viajes previo ({self._travel_agent_instance.session_id}) había finalizado. Creando/reseteando para {current_tool_session}.")
+#             if self._travel_agent_instance and self._travel_agent_instance.is_conversation_finished():
+#                 print(f"[Tool] Agente de viajes previo ({self._travel_agent_instance.session_id}) había finalizado. Creando/reseteando para {current_tool_session}.")
             
-            print(f"[Tool] Inicializando TravelAgentLangGraph para la sesión de herramienta: {current_tool_session}")
+#             print(f"[Tool] Inicializando TravelAgentLangGraph para la sesión de herramienta: {current_tool_session}")
             
-            try:
-                self._travel_agent_instance = TravelAgentLangGraph(
-                    api_key=API_KEY_TO_USE,
-                    system_prompt=SYSTEM_PROMPT_EXPLORADOR,
-                    session_id=current_tool_session
-                )
-                self._session_id_for_agent = current_tool_session # Actualizar el session id de la herramienta
-            except (ValueError, ConnectionError) as e: # Capturar errores específicos de init
-                print(f"[Tool ERROR] No se pudo inicializar TravelAgentLangGraph: {e}")
-                raise RuntimeError(f"Fallo al inicializar el subagente de viajes: {e}") from e
-            except Exception as e: # Capturar cualquier otra excepción durante la inicialización
-                print(f"[Tool ERROR inesperado] No se pudo inicializar TravelAgentLangGraph: {e}")
-                raise RuntimeError(f"Fallo inesperado al inicializar el subagente de viajes: {e}") from e
+#             try:
+#                 self._travel_agent_instance = TravelAgentLangGraph(
+#                     api_key=API_KEY_TO_USE,
+#                     system_prompt=SYSTEM_PROMPT_EXPLORADOR,
+#                     session_id=current_tool_session
+#                 )
+#                 self._session_id_for_agent = current_tool_session # Actualizar el session id de la herramienta
+#             except (ValueError, ConnectionError) as e: # Capturar errores específicos de init
+#                 print(f"[Tool ERROR] No se pudo inicializar TravelAgentLangGraph: {e}")
+#                 raise RuntimeError(f"Fallo al inicializar el subagente de viajes: {e}") from e
+#             except Exception as e: # Capturar cualquier otra excepción durante la inicialización
+#                 print(f"[Tool ERROR inesperado] No se pudo inicializar TravelAgentLangGraph: {e}")
+#                 raise RuntimeError(f"Fallo inesperado al inicializar el subagente de viajes: {e}") from e
     
-    def _run(self, user_query: str, **kwargs: Any) -> str:
-        try:
-            # Asegurarse de que el agente esté inicializado para la sesión actual de la herramienta
-            self._init_agent() 
-        except RuntimeError as e:
-            return str(e) 
+#     def _run(self, user_query: str, **kwargs: Any) -> str:
+#         try:
+#             # Asegurarse de que el agente esté inicializado para la sesión actual de la herramienta
+#             self._init_agent() 
+#         except RuntimeError as e:
+#             return str(e) 
 
-        if not self._travel_agent_instance or not self._travel_agent_instance.current_state["api_configured"]:
-             return "Error: El subagente de viajes no está listo o no tiene API configurada."
+#         if not self._travel_agent_instance or not self._travel_agent_instance.current_state["api_configured"]:
+#              return "Error: El subagente de viajes no está listo o no tiene API configurada."
 
-        is_first_user_turn_for_agent = (
-            len(self._travel_agent_instance.current_state["messages"]) == 1 and
-            isinstance(self._travel_agent_instance.current_state["messages"][0], AIMessage)
-        )
-        initial_greeting_if_first_turn = ""
-        if is_first_user_turn_for_agent:
-            initial_greeting_if_first_turn = f"{self._travel_agent_instance.get_initial_greeting()}\n\n"
+#         is_first_user_turn_for_agent = (
+#             len(self._travel_agent_instance.current_state["messages"]) == 1 and
+#             isinstance(self._travel_agent_instance.current_state["messages"][0], AIMessage)
+#         )
+#         initial_greeting_if_first_turn = ""
+#         if is_first_user_turn_for_agent:
+#             initial_greeting_if_first_turn = f"{self._travel_agent_instance.get_initial_greeting()}\n\n"
         
-        agent_response = self._travel_agent_instance.process_user_input(user_query)
-        full_response = f"{initial_greeting_if_first_turn}{agent_response}"
+#         agent_response = self._travel_agent_instance.process_user_input(user_query)
+#         full_response = f"{initial_greeting_if_first_turn}{agent_response}"
 
-        if self._travel_agent_instance.is_conversation_finished():
-            final_data = self._travel_agent_instance.get_final_data()
-            return (f"PLANIFICACIÓN DE VIAJE COMPLETADA.\n"
-                    f"{full_response}\n" # full_response ya contiene el saludo inicial (si aplica) + el resumen del agente
-                    f"Datos finales recopilados: {json.dumps(final_data)}")
-        else:
-            return full_response
+#         if self._travel_agent_instance.is_conversation_finished():
+#             final_data = self._travel_agent_instance.get_final_data()
+#             return (f"PLANIFICACIÓN DE VIAJE COMPLETADA.\n"
+#                     f"{full_response}\n" # full_response ya contiene el saludo inicial (si aplica) + el resumen del agente
+#                     f"Datos finales recopilados: {json.dumps(final_data)}")
+#         else:
+#             return full_response
 
-    async def _arun(self, user_query: str, **kwargs: Any) -> str:
-        print("[Tool WARN] _arun llamado, usando implementación síncrona _run.")
-        return self._run(user_query, **kwargs)
+#     async def _arun(self, user_query: str, **kwargs: Any) -> str:
+#         print("[Tool WARN] _arun llamado, usando implementación síncrona _run.")
+#         return self._run(user_query, **kwargs)
 
-# --- Bloque para Chatear Directamente desde este Archivo ---
-if __name__ == "__main__":
-    print("--- Chat Interactivo con TravelPlannerTool ---")
-    print("Escribe 'salir' para terminar.")
+# # --- Bloque para Chatear Directamente desde este Archivo ---
+# if __name__ == "__main__":
+#     print("--- Chat Interactivo con TravelPlannerTool ---")
+#     print("Escribe 'salir' para terminar.")
 
-    if not API_KEY_TO_USE or API_KEY_TO_USE == "YOUR_FALLBACK_API_KEY":
-        print("\nADVERTENCIA: La API Key para el TravelAgent no está configurada correctamente.")
-        print("El agente podría no funcionar. Por favor, configura GOOGLE_API_KEY o TRAVEL_AGENT_API_KEY.")
-        # No salimos, pero el agente probablemente fallará al inicializar si la key es mala.
+#     if not API_KEY_TO_USE or API_KEY_TO_USE == "YOUR_FALLBACK_API_KEY":
+#         print("\nADVERTENCIA: La API Key para el TravelAgent no está configurada correctamente.")
+#         print("El agente podría no funcionar. Por favor, configura GOOGLE_API_KEY o TRAVEL_AGENT_API_KEY.")
+#         # No salimos, pero el agente probablemente fallará al inicializar si la key es mala.
     
-    # Creamos una instancia de la herramienta para esta sesión de chat
-    # Esta instancia de la herramienta mantendrá el estado de UNA conversación de viaje a la vez.
-    # Si escribes "salir" y vuelves a ejecutar el script, se creará una nueva instancia.
-    try:
-        chat_tool = TravelPlannerTool()
-        # Forzar la inicialización del agente interno al principio
-        # El _run lo haría, pero para mostrar el saludo inicial del agente si es el primer uso:
-        chat_tool._init_agent(tool_session_id="interactive_chat_session") 
+#     # Creamos una instancia de la herramienta para esta sesión de chat
+#     # Esta instancia de la herramienta mantendrá el estado de UNA conversación de viaje a la vez.
+#     # Si escribes "salir" y vuelves a ejecutar el script, se creará una nueva instancia.
+#     try:
+#         chat_tool = TravelPlannerTool()
+#         # Forzar la inicialización del agente interno al principio
+#         # El _run lo haría, pero para mostrar el saludo inicial del agente si es el primer uso:
+#         chat_tool._init_agent(tool_session_id="interactive_chat_session") 
         
-        # Mostrar el saludo inicial si es la primera vez que se usa el agente interno
-        # y el agente no ha sido "usado" todavía (es decir, process_user_input no ha sido llamado).
-        # Esto es un poco redundante con la lógica dentro de _run, pero para un chat directo
-        # puede ser bueno ver el saludo explícitamente.
-        if chat_tool._travel_agent_instance and \
-           len(chat_tool._travel_agent_instance.current_state["messages"]) == 1 and \
-           isinstance(chat_tool._travel_agent_instance.current_state["messages"][0], AIMessage):
-            print(f"\n<< Asistente de Viajes:\n{chat_tool._travel_agent_instance.get_initial_greeting()}")
+#         # Mostrar el saludo inicial si es la primera vez que se usa el agente interno
+#         # y el agente no ha sido "usado" todavía (es decir, process_user_input no ha sido llamado).
+#         # Esto es un poco redundante con la lógica dentro de _run, pero para un chat directo
+#         # puede ser bueno ver el saludo explícitamente.
+#         if chat_tool._travel_agent_instance and \
+#            len(chat_tool._travel_agent_instance.current_state["messages"]) == 1 and \
+#            isinstance(chat_tool._travel_agent_instance.current_state["messages"][0], AIMessage):
+#             print(f"\n<< Asistente de Viajes:\n{chat_tool._travel_agent_instance.get_initial_greeting()}")
 
-    except RuntimeError as e:
-        print(f"\n[ERROR CRÍTICO AL INICIAR] No se pudo inicializar la herramienta de chat: {e}")
-        print("Verifica la configuración de la API Key y la conexión a internet.")
-        exit()
-    except Exception as e: # Captura otras excepciones inesperadas durante la inicialización
-        print(f"\n[ERROR INESPERADO AL INICIAR] {e}")
-        exit()
+#     except RuntimeError as e:
+#         print(f"\n[ERROR CRÍTICO AL INICIAR] No se pudo inicializar la herramienta de chat: {e}")
+#         print("Verifica la configuración de la API Key y la conexión a internet.")
+#         exit()
+#     except Exception as e: # Captura otras excepciones inesperadas durante la inicialización
+#         print(f"\n[ERROR INESPERADO AL INICIAR] {e}")
+#         exit()
 
 
 ########################################
@@ -358,9 +358,9 @@ def explorador(hotel_name: str):
     return f"Successfully booked a stay at {hotel_name}."
 
 explorador = create_react_agent(
-    # model="google_genai:gemini-2.0-flash",
-    tools=[book_hotel],
-    # prompt=SYSTEM_PROMPT_EXPLORADOR,
+    model="google_genai:gemini-2.0-flash",
+    tools=[],
+    prompt=SYSTEM_PROMPT_EXPLORADOR,
     name="explorador"
 )
 

@@ -4,6 +4,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from agents.flight_assistant import flight_assistant
 from agents.hotel_assistant import hotel_assistant
+from agents.explorador import explorador
 from utils.schemas import State
 from langchain_core.messages import convert_to_messages
 from utils.logger_config import setup_logger
@@ -43,17 +44,18 @@ graph_builder = StateGraph(State)
 # logger.info("Graph compilation completed")
 
 supervisor = create_supervisor(
-    agents=[flight_assistant, hotel_assistant],
+    agents=[flight_assistant, hotel_assistant, explorador],
     model=ChatGoogleGenerativeAI(
         model="gemini-2.0-flash"
     ),
     prompt="""
-    Eres un supervisor que maneja dos agentes:
+    Eres un sistema multiagente con el objetivo de ayudar a los usuarios a planificar sus viajes.
+    Tu misión es asignar trabajo a los siguientes agentes y pedir al usuario toda la información que necesiten:
     - Hotel booking assistant
     - Flight booking assistant
+    - explorador: Un agente que ayuda al usuario a decidir donde quiere ir.
 
-    Asignales trabajo
-
+    Ten en cuanta las siguientes normas:
     - Si los agentes piden informacion, pidesela al usuario.
     - El usuario no puede hablar con los agentes, lo hará siempre a través de ti.
     """
