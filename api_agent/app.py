@@ -18,6 +18,6 @@ def read_root():
 
 @app.post("/chat")
 async def chat(input: Input):
-    response = process_message(input.message, input.thread_id)
-    return {"response": response}
+    result = process_message(input.message, input.thread_id)
+    return result
 

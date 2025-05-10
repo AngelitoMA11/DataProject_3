@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from agents.flight_assistant import flight_assistant
 from agents.hotel_assistant import hotel_assistant
 from agents.explorador import explorador
-from utils.schemas import State
+from utils.schemas import State, CustomAgentState
 from langchain_core.messages import convert_to_messages
 from utils.logger_config import setup_logger
 
@@ -26,8 +26,8 @@ logger = setup_logger('api_agent.graph')
 memory = MemorySaver()
 
 # Graph Builder
-logger.info("Initializing graph builder")
-graph_builder = StateGraph(State)
+# logger.info("Initializing graph builder")
+# graph_builder = StateGraph(State)
 
 # graph_builder.add_node(supervisor, destinations=("research", "math_agent"))
 # graph_builder.add_node(research)
@@ -46,78 +46,56 @@ graph_builder = StateGraph(State)
 supervisor = create_supervisor(
     agents=[flight_assistant, hotel_assistant, explorador],
     model=ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash"
+        model="gemini-2.0-flash",
     ),
+    state_schema=CustomAgentState,
     prompt="""
     Eres un sistema multiagente con el objetivo de ayudar a los usuarios a planificar sus viajes.
-    Tu misión es asignar trabajo a los siguientes agentes y pedir al usuario toda la información que necesiten:
+    Tu misión es asignar trabajo a los siguientes agentes:
     - Hotel booking assistant
     - Flight booking assistant
     - explorador: Un agente que ayuda al usuario a decidir donde quiere ir.
 
     Ten en cuanta las siguientes normas:
-    - Si los agentes piden informacion, pidesela al usuario.
+    - Si los agentes te piden información, pidesela al usuario.
     - El usuario no puede hablar con los agentes, lo hará siempre a través de ti.
+    - No menciones a los agentes, el usuario no debe de saber que existen.
     """
-).compile(checkpointer=memory)
+).compile(checkpointer=memory) # Añadimos la memoria
 
-def process_message(message: str, thread_id: str) -> str:
-    """Process a single message and return the response"""
+
+def process_message(message: str, thread_id: str) -> dict:
+    """Process a single message and return the response and reasoning chain"""
     logger.info(f"Processing message for thread {thread_id}")
     state = {"messages": [HumanMessage(content=message)]}
     config = {"configurable": {"thread_id": thread_id}}
     
     # Process message through the graph
     for step in supervisor.stream(state, config):
-        # steps = '\n'.join([i.content for i in final_message_history])
         logger.debug(f"Step output: {step}")
-        # pretty_print_messages(step, last_message=True)
-
     
     logger.info("Message processing completed")
-    final_message_history = step["supervisor"]["messages"]
-    for message in final_message_history:
-        message.pretty_print()
+    all_messages = step["supervisor"]["messages"]
+
+    # Find the index of the last HumanMessage
+    last_human_index = -1
+    for i, msg in enumerate(all_messages):
+        if isinstance(msg, HumanMessage):
+            last_human_index = i
+
+    # Get all messages from the last HumanMessage to the end
+    last_interaction_messages = all_messages[last_human_index:]
+    logger.info(f"Last interaction messages: {last_interaction_messages}")
     
-    return final_message_history[-1].content
+    return {
+        "response": all_messages[-1].content,
+        "reasoning_chain": "\n".join(message.pretty_repr(html=False) for message in last_interaction_messages)
+    }
 
-def pretty_print_message(message, indent=False):
-    text = ''
-    pretty_message = message.pretty_repr(html=True)
-    if not indent:
-        text += f'{pretty_message}\n'
-        return text
+# def pretty_print_message(message, indent=False):
+#     pretty_message = message.pretty_repr(html=False)
+#     if not indent:
+#         return f'{pretty_message}\n'
 
-    indented = "\n".join("\t" + c for c in pretty_message.split("\n"))
-    text += f'{indented}\n'
-    return text
-
-def pretty_print_messages(update, last_message=False):
-    text = ''
-    is_subgraph = False
-    if isinstance(update, tuple):
-        ns, update = update
-        # skip parent graph updates in the printouts
-        if len(ns) == 0:
-            return
-
-        graph_id = ns[-1].split(":")[0]
-        text += f'Update from subgraph {graph_id}:\n\n'
-        is_subgraph = True
-
-    for node_name, node_update in update.items():
-        update_label = f"Update from node {node_name}:"
-        if is_subgraph:
-            update_label = "\t" + update_label
-        
-        text += f'{update_label}\n\n'
-
-        messages = convert_to_messages(node_update["messages"])
-        if last_message:
-            messages = messages[-1:]
-
-        for m in messages:
-            text += pretty_print_message(m, indent=is_subgraph) +"\n"
-        text += "\n"
-    
-    logger.debug(text)
+#     indented = "\n".join("\t" + c for c in pretty_message.split("\n"))
+#     return f'{indented}\n'

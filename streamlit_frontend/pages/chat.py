@@ -35,6 +35,9 @@ if "thread_id" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if "reasoning" in msg and msg["reasoning"]:
+            with st.expander("Ver cadena de razonamiento"):
+                st.text(msg["reasoning"])
 
 # Entrada del usuario
 if prompt := st.chat_input("Escribe tu mensaje"):
@@ -50,9 +53,19 @@ if prompt := st.chat_input("Escribe tu mensaje"):
                     "thread_id": st.session_state.thread_id
                 })
                 res.raise_for_status()
-                reply = res.json()["response"]
+                result = res.json()
+                reply = result["response"]
+                reasoning = result["reasoning_chain"]
             except Exception as e:
                 reply = f"❌ Error: {str(e)}"
+                reasoning = ""
 
             st.markdown(reply)
-            st.session_state.messages.append({"role": "assistant", "content": reply}) 
+            if reasoning:
+                with st.expander("Ver cadena de razonamiento"):
+                    st.text(reasoning)
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": reply,
+                "reasoning": reasoning
+            }) 
