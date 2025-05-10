@@ -1,6 +1,6 @@
 import requests
 from langchain_core.tools import tool
-from config import DATA_API_URL
+from src.config import DATA_API_URL
 
 
 @tool

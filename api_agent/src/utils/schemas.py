@@ -3,9 +3,6 @@ from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt.chat_agent_executor import AgentState
 
-class State(TypedDict):
-    messages: Annotated[list, add_messages]
-
 
 class CustomAgentState(AgentState):
     """The state of the agent."""
@@ -13,4 +10,4 @@ class CustomAgentState(AgentState):
     # is_last_step: IsLastStep
     # remaining_steps: RemainingSteps
 
-    # destino: 
+    # TODO Añadir estados para los agentes

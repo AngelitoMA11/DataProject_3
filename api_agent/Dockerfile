@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 8000
 
 # Default command to run the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

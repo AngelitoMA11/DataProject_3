@@ -2,46 +2,20 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from agents.flight_assistant import flight_assistant
-from agents.hotel_assistant import hotel_assistant
-from agents.explorador import explorador
-from utils.schemas import State, CustomAgentState
-from langchain_core.messages import convert_to_messages
-from utils.logger_config import setup_logger
-
-# from agents.human_interrupt import human_interrupt
-# from agents.itinerary_planner import itinerary_planner
-# from agents.orchestrator import orchestrator
-# from agents.travel_planner import travel_planner
+from src.agents.flight_assistant import flight_assistant
+from src.agents.hotel_assistant import hotel_assistant
+from src.agents.explorador import explorador
+from src.utils.schemas import CustomAgentState
+from src.utils.logger_config import setup_logger
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph_supervisor import create_supervisor
-
-from agents.supervisor import supervisor
 
 # Create logger for this module
 logger = setup_logger('api_agent.graph')
 
 # Memory
 memory = MemorySaver()
-
-# Graph Builder
-# logger.info("Initializing graph builder")
-# graph_builder = StateGraph(State)
-
-# graph_builder.add_node(supervisor, destinations=("research", "math_agent"))
-# graph_builder.add_node(research)
-# graph_builder.add_node(math_agent)
-
-# # always return back to the supervisor
-# graph_builder.add_edge(START, "supervisor")
-# graph_builder.add_edge("research", "supervisor")
-# graph_builder.add_edge("math_agent", "supervisor")
-
-# # Build graph
-# logger.info("Compiling graph")
-# graph = graph_builder.compile(checkpointer=memory)
-# logger.info("Graph compilation completed")
 
 supervisor = create_supervisor(
     agents=[flight_assistant, hotel_assistant, explorador],
@@ -91,11 +65,3 @@ def process_message(message: str, thread_id: str) -> dict:
         "response": all_messages[-1].content,
         "reasoning_chain": "\n".join(message.pretty_repr(html=False) for message in last_interaction_messages)
     }
-
-# def pretty_print_message(message, indent=False):
-#     pretty_message = message.pretty_repr(html=False)
-#     if not indent:
-#         return f'{pretty_message}\n'
-
-#     indented = "\n".join("\t" + c for c in pretty_message.split("\n"))
-#     return f'{indented}\n'
