@@ -9,10 +9,6 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field # Asegúrate de tener pydantic instalado
 import uuid
 
-# --- Configuration ---
-if "GOOGLE_API_KEY" not in os.environ:
-    os.environ["GOOGLE_API_KEY"] = 'AIzaSyDl3TJNjVdRqNq3QSYla81wKsO-esUL778'
-
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 # Para pruebas, puedes hardcodearla, pero es mejor usar variables de entorno
 API_KEY_TO_USE = os.getenv("TRAVEL_AGENT_API_KEY", GOOGLE_API_KEY if GOOGLE_API_KEY else "YOUR_FALLBACK_API_KEY")
