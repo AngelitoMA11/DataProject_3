@@ -1,9 +1,6 @@
-from typing import Annotated, TypedDict, List, Literal
+from typing import Annotated, List, Literal
+from typing_extensions import TypedDict 
 from langgraph.graph.message import add_messages
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-
-class Router(TypedDict):
-    next: Literal["itinerary_agent", "flight_agent", "human", "finish"]
-    message: str

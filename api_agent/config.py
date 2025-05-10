@@ -8,4 +8,4 @@ DEBUG_MODE = True
 LANGRAPH_API_KEY = "your_langraph_api_key"
 DEFAULT_CURRENCY = "EUR"
 
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]

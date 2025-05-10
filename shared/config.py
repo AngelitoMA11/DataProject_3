@@ -1,6 +1,6 @@
 import os
 
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]
 
 DATABASE_URL = "sqlite:///./database.db"
 API_VERSION = "v1"

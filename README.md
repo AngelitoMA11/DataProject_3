@@ -20,7 +20,7 @@ DataProject_3 is a multi-component application that integrates an AI agent with 
 2. **Create .env file**
 
     ```text
-    GEMINI_API_KEY=<your-api-key>
+    GOOGLE_API_KEY=<your-api-key>
     ```
 
 3. **Docker compose up**:
