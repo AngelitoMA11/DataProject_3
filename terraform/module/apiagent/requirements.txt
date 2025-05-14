@@ -1,0 +1,9 @@
+fastapi
+langchain
+langgraph
+langgraph-supervisor
+langchain-google-genai
+uvicorn
+# pydantic
+# httpx
+# loguru

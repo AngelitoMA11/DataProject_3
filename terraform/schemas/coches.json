@@ -1,0 +1,10 @@
+[
+    { "name": "Ciudad",       "type": "STRING",  "mode": "NULLABLE" },
+    { "name": "Compañía",     "type": "STRING",  "mode": "NULLABLE" },
+    { "name": "Vehículo",     "type": "STRING",  "mode": "NULLABLE" },
+    { "name": "Categoría",    "type": "STRING",  "mode": "NULLABLE" },
+    { "name": "Asientos",     "type": "INT64",   "mode": "NULLABLE" },
+    { "name": "Transmisión",  "type": "STRING",  "mode": "NULLABLE" },
+    { "name": "Precio",       "type": "FLOAT64", "mode": "NULLABLE" }
+  ]
+  
