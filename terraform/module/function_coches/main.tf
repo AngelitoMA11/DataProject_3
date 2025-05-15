@@ -8,6 +8,13 @@ resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
 
+data "archive_file" "function_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}"
+  output_path = "${path.module}/${var.name}.zip"
+  excludes    = ["*.tf", "*.zip"]
+}
+
 resource "google_storage_bucket_object" "function_zip" {
   name   = "${var.name}.zip"
   bucket = google_storage_bucket.function_bucket.name
