@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-pydantic
-httpx
-streamlit
-requests
-google-cloud-pubsub

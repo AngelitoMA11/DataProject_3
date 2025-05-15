@@ -1,0 +1,21 @@
+[
+    {"name": "id_hotel", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "nombre", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "direccion", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "ciudad", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "latitud", "type": "FLOAT", "mode": "NULLABLE"},
+    {"name": "longitud", "type": "FLOAT", "mode": "NULLABLE"},
+    {"name": "clasificacion", "type": "FLOAT", "mode": "NULLABLE"},
+    {"name": "puntuacion_resenas", "type": "FLOAT", "mode": "NULLABLE"},
+    {"name": "numero_resenas", "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "precio", "type": "FLOAT", "mode": "NULLABLE"},
+    {"name": "moneda", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "fecha_entrada", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "fecha_salida", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "codigo_pais", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "clase_propiedad", "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "valoracion_texto", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "id_foto_principal", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "url_foto", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "timestamp", "type": "INTEGER", "mode": "NULLABLE"}
+  ]

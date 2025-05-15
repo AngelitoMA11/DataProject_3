@@ -1,7 +1,0 @@
-fastapi
-langgraph
-langchain-google-genai
-uvicorn
-# pydantic
-# httpx
-# loguru
