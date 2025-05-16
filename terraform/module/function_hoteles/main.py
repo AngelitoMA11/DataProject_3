@@ -1,165 +1,262 @@
-import json
-import os
-import httpx
-import urllib.parse
+import json, os, httpx
+from serpapi import GoogleSearch
 from google.cloud import bigquery
 import functions_framework
-import google.cloud.logging
 import logging
-import traceback
 
-# Configuración
+# Configuración básica
 PROJECT_ID = os.environ.get("PROJECT_ID")
 DATASET = os.environ.get("DATASET")
 TABLE = os.environ.get("TABLE")
+SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
-FLIGHT_HOTEL_HOST = "booking-com15.p.rapidapi.com"
-FLIGHT_HOTEL_HEADERS = {
-    "x-rapidapi-key": RAPIDAPI_KEY,
-    "x-rapidapi-host": FLIGHT_HOTEL_HOST
-}
-ENDPOINT_BASE = os.environ.get("API_DATA_URL")
-ENDPOINT_HOTELES_LIMPIOS = f"{ENDPOINT_BASE}/hoteles/limpios"
+BOOKING_HOST = "booking-com18.p.rapidapi.com"
+BOOKING_HEADERS = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": BOOKING_HOST}
 
-# Inicializar cliente de logging
-client_logging = google.cloud.logging.Client()
-client_logging.setup_logging()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def extract_safe_float(value, default=0.0):
-    if value is None:
-        return default
+# Función auxiliar
+def extract_value(value, default=None, tipo="str"):
+    if value is None: return default
+    try: return float(value) if tipo == "float" else int(value) if tipo == "int" else str(value)
+    except: return default
+
+# Booking API
+def obtener_ufi_destino(ciudad):
     try:
-        return float(value)
-    except (ValueError, TypeError):
-        return default
-
-def extract_safe_int(value, default=0):
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default
-
-def extract_safe_string(value, default=""):
-    if value is None:
-        return default
-    try:
-        return str(value)
-    except Exception:
-        return default
-
-async def obtener_id_destino_hotel(ciudad: str):
-    async with httpx.AsyncClient() as client:
-        query = urllib.parse.quote(ciudad)
-        url = f"https://{FLIGHT_HOTEL_HOST}/api/v1/hotels/searchDestination?query={query}"
-        resp = await client.get(url, headers=FLIGHT_HOTEL_HEADERS, timeout=10)
-        resp.raise_for_status()
-        data = resp.json().get("data", [])
-        if not data:
-            raise ValueError(f"No se encontró ningún destino para '{ciudad}'")
-        destino = max(data, key=lambda d: d.get("hotels", 0))
-        return destino["dest_id"], destino["search_type"]
-
-def procesar_hoteles(data):
-    hoteles_procesados = []
-    try:
-        hoteles = []
-        if 'data' in data and 'hotels' in data['data']:
-            hoteles = data['data']['hotels']
-        if not hoteles:
-            return []
-        for hotel in hoteles:
-            hotel_procesado = process_hotel_data(hotel, data)
-            if hotel_procesado:
-                hoteles_procesados.append(hotel_procesado)
+        with httpx.AsyncClient() as client:
+            resp = client.get(f"https://{BOOKING_HOST}/stays/auto-complete",
+                                  headers=BOOKING_HEADERS, params={"query": ciudad}, timeout=15)
+            if resp.status_code != 200: return None, None, None
+            data = resp.json()
+            if data and isinstance(data, list):
+                first_result = data[0]
+                return first_result.get("ufi"), first_result.get("latitude"), first_result.get("longitude")
+            return None, None, None
     except Exception as e:
-        logging.exception("Error al procesar hoteles")
-    return hoteles_procesados
+        logging.error(f"Error en obtener_ufi_destino: {str(e)}")
+        return None, None, None
 
-def process_hotel_data(hotel, parent_data=None):
+def buscar_en_booking(payload):
     try:
-        property_data = hotel.get('property', {})
-        price_info = property_data.get('priceBreakdown', {}).get('grossPrice', {})
-        price = round(extract_safe_float(price_info.get('value', 0)), 2)
-        return {
-            "nombre": extract_safe_string(property_data.get('name', '')),
-            "direccion": extract_safe_string(hotel.get('accessibilityLabel', '').split('\n')[0] if hotel.get('accessibilityLabel') else ''),
-            "ciudad": extract_safe_string(property_data.get('wishlistName', '')),
-            "clasificacion": extract_safe_float(property_data.get('qualityClass', 0)),
-            "puntuacion_resenas": extract_safe_float(property_data.get('reviewScore', 0)),
-            "numero_resenas": extract_safe_int(property_data.get('reviewCount', 0)),
-            "precio": price,
-            "moneda": "EUR",
-            "fecha_entrada": extract_safe_string(property_data.get('checkinDate', '')),
-            "fecha_salida": extract_safe_string(property_data.get('checkoutDate', '')),
-            "codigo_pais": extract_safe_string(property_data.get('countryCode', '')),
-            "clase_propiedad": extract_safe_int(property_data.get('propertyClass', 0)),
-            "valoracion_texto": extract_safe_string(property_data.get('reviewScoreWord', ''))
+        ufi, latitude, longitude = obtener_ufi_destino(payload["ciudad"])
+        if not ufi or latitude is None or longitude is None:
+            return {"error": "No se encontró destino o coordenadas"}
+
+        params = {
+            "ufi": ufi,
+            "checkinDate": payload["fecha_entrada"],
+            "checkoutDate": payload["fecha_vuelta"],
+            "adults": str(payload.get("adults", 2)),
+            "rooms": str(payload.get("rooms", 1)),
+            "latitude": str(latitude),
+            "longitude": str(longitude),
+            "currency": "EUR"
         }
+        with httpx.AsyncClient() as client:
+            resp = client.get(f"https://{BOOKING_HOST}/stays/search",
+                                   headers=BOOKING_HEADERS, params=params, timeout=30)
+            if resp.status_code != 200:
+                return {"error": f"Error: {resp.status_code} - {resp.text}"}
+            return resp.json()
     except Exception as e:
-        logging.warning(f"Error al procesar hotel individual: {e}")
-        return None
+        return {"error": str(e)}
 
-def insertar_en_bigquery(hoteles_procesados):
+def limpiar_booking(data):
+    hoteles = []
     try:
-        if not hoteles_procesados:
-            return False
+        if "error" in data: return []
+        
+        hoteles_raw = data.get('0', [])
+        if not isinstance(hoteles_raw, list):
+            hoteles_raw = data.get('data', [])
+            if not isinstance(hoteles_raw, list): return []
+
+        for hotel_item in hoteles_raw:
+            try:
+                nombre = extract_value(hotel_item.get('name'))
+                direccion = extract_value(hotel_item.get('address'))
+                ciudad = extract_value(hotel_item.get('wishlistName'))
+
+                precio = 0
+                moneda = 'USD'
+                if 'priceBreakdown' in hotel_item and isinstance(hotel_item['priceBreakdown'], dict):
+                    gross_price_info = hotel_item['priceBreakdown'].get('grossPrice', {})
+                    precio = round(extract_value(gross_price_info.get('value', 0), 0, "float"), 2)
+                    moneda = gross_price_info.get('currency', 'USD')
+                elif 'value' in hotel_item:
+                    precio = round(extract_value(hotel_item['value'], 0, "float"), 2)
+                    moneda = extract_value(hotel_item.get('currency', 'USD'))
+
+                fotos = []
+                if 'photoUrls' in hotel_item and isinstance(hotel_item['photoUrls'], list):
+                    fotos = hotel_item['photoUrls'][:3]
+                elif 'photos' in hotel_item and isinstance(hotel_item['photos'], list):
+                    for photo_entry in hotel_item['photos']:
+                        if isinstance(photo_entry, str) and photo_entry.startswith("http"):
+                            fotos.append(photo_entry)
+                        elif isinstance(photo_entry, dict) and photo_entry.get('url'):
+                            fotos.append(photo_entry['url'])
+                    fotos = fotos[:3]
+
+                servicios = []
+                if 'facilities' in hotel_item and isinstance(hotel_item['facilities'], list):
+                    servicios = [f.get('name') for f in hotel_item['facilities'] if f and 'name' in f][:5]
+                elif 'amenities' in hotel_item and isinstance(hotel_item['amenities'], list):
+                    servicios = [a.get('name') for a in hotel_item['amenities'] if a and 'name' in a][:5]
+
+                if nombre or precio > 0:
+                    hoteles.append({
+                        "Nombre": nombre,
+                        "Direccion": direccion,
+                        "Ciudad": ciudad,
+                        "Puntuacion": extract_value(hotel_item.get('reviewScore'), 0, "float"),
+                        "NumResenas": extract_value(hotel_item.get('reviewCount'), 0, "int"),
+                        "PrecioNoche": precio,
+                        "Moneda": moneda,
+                        "FechaEntrada": extract_value(hotel_item.get('checkinDate')),
+                        "FechaSalida": extract_value(hotel_item.get('checkoutDate')),
+                        "Categoria": extract_value(hotel_item.get('propertyClass'), 0, "int"),
+                        "Fotos": fotos,
+                        "Servicios": servicios,
+                        "EnlaceHotel": extract_value(hotel_item.get('url')),
+                        "Fuente": "Booking"
+                    })
+            except: continue
+    except Exception as e:
+        logging.error(f"Error en limpiar_booking: {str(e)}")
+    return hoteles
+
+# SerpAPI
+def buscar_en_serpapi(payload):
+    try:
+        params = {
+            "api_key": SERPAPI_KEY, "engine": "Google Hotels",
+            "q": f"{payload['ciudad']} Hotel",
+            "check_in_date": payload["fecha_entrada"], "check_out_date": payload["fecha_vuelta"],
+            "currency": "EUR", "hl": "es", "gl": "es", "adults": str(payload.get("adults", 1))
+        }
+        if "max_price" in payload: params["max_price"] = str(payload["max_price"])
+        if "valoracion" in payload and payload["valoracion"] is not None:
+            params["min_rating"] = str(payload["valoracion"])
+
+        search = GoogleSearch(params)
+        return search.get_dict()
+    except Exception as e:
+        return {"error": str(e)}
+
+def limpiar_serpapi(data, payload):
+    hoteles = []
+    try:
+        if "error" in data: return []
+        if "properties" not in data: return []
+        
+        for hotel in data["properties"]:
+            try:
+                precio = 0
+                if "price" in hotel:
+                    precio_str = str(hotel["price"]).replace("€", "").replace(".", "").replace(",", ".").strip()
+                    try:
+                        precio = float(precio_str)
+                    except:
+                        import re
+                        digitos = re.findall(r'\d+', precio_str)
+                        if digitos: precio = float("".join(digitos))
+
+                nombre = extract_value(hotel.get("title")) or extract_value(hotel.get("name"))
+                if nombre:
+                    hoteles.append({
+                        "Nombre": nombre,
+                        "Direccion": extract_value(hotel.get("address")),
+                        "Ciudad": extract_value(payload["ciudad"]),
+                        "Puntuacion": extract_value(hotel.get("rating"), 0, "float"),
+                        "NumResenas": extract_value(hotel.get("reviews"), 0, "int"),
+                        "PrecioNoche": precio,
+                        "Moneda": "EUR",
+                        "FechaEntrada": payload["fecha_entrada"],
+                        "FechaSalida": payload["fecha_vuelta"],
+                        "Categoria": extract_value(hotel.get("stars"), 0, "int"),
+                        "Fotos": [hotel.get("thumbnail")] if hotel.get("thumbnail") else [],
+                        "Servicios": hotel.get("amenities", [])[:5] if "amenities" in hotel else [],
+                        "EnlaceHotel": hotel.get("link", ""),
+                        "Fuente": "SerpAPI"
+                    })
+            except: continue
+    except Exception as e:
+        logging.error(f"Error en limpiar_serpapi: {str(e)}")
+    return hoteles
+
+# BigQuery
+def insertar_en_bigquery(hoteles):
+    if not hoteles: return False
+    try:
+        if os.environ.get("ENTORNO") == "local":
+            logging.info(f"[SIMULACIÓN] Se insertarían {len(hoteles)} hoteles en BigQuery")
+            return True
         client = bigquery.Client(project=PROJECT_ID)
         tabla_id = f"{PROJECT_ID}.{DATASET}.{TABLE}"
-        errors = client.insert_rows_json(tabla_id, hoteles_procesados)
+        errors = client.insert_rows_json(tabla_id, hoteles)
         if errors:
-            logging.warning(f"Errores al insertar datos en BigQuery: {errors}")
+            logging.error(f"BigQuery insert errors: {errors}")
             return False
         return True
     except Exception as e:
-        logging.exception("Error al insertar en BigQuery")
+        logging.error(f"Error inserting into BigQuery: {str(e)}")
         return False
 
+# Punto de entrada
 @functions_framework.http
-async def buscar_hoteles(request):
+def buscar_hoteles(request):
     try:
-        request_json = request.get_json(silent=True)
-        if not request_json:
-            logging.error("Cuerpo JSON no válido o ausente.")
-            return {"error": "No se proporcionó un cuerpo JSON válido"}
+        testing = os.environ.get("ENTORNO") == "local"
+        if testing:
+            request_json = {
+                "ciudad": "New York",
+                "fecha_entrada": "2025-06-15",
+                "fecha_vuelta": "2025-06-20",
+                "adults": 2,
+                "rooms": 1,
+                "valoracion": 4
+            }
+        else:
+            request_json = request.get_json(silent=True)
+
+        if not request_json or not all(k in request_json for k in ["ciudad", "fecha_entrada", "fecha_vuelta"]):
+            return {"error": "Datos incorrectos o incompletos."}, 400
+
+        request_json["adults"] = request_json.get("adults", 2)
+        request_json["rooms"] = request_json.get("rooms", 1)
+        request_json["valoracion"] = request_json.get("valoracion", None)
+
+        # Búsqueda en ambas APIs
+        resultado_booking = buscar_en_booking(request_json)
+        hoteles_booking = limpiar_booking(resultado_booking)
+        
+        resultado_serpapi = buscar_en_serpapi(request_json)
+        hoteles_serpapi = limpiar_serpapi(resultado_serpapi, request_json)
+        
+        hoteles_combinados = hoteles_booking + hoteles_serpapi
+
+        # Filtro por valoración
+        if request_json["valoracion"] is not None:
+            try:
+                min_rating = float(request_json["valoracion"])
+                hoteles_combinados = [h for h in hoteles_combinados if h.get("Puntuacion", 0) >= min_rating]
+            except: pass
+
+        # Guardar en BigQuery
+        if hoteles_combinados:
+            insertar_en_bigquery(hoteles_combinados)
+
+        return {
+            "success": True,
+            "hoteles_encontrados": len(hoteles_combinados),
+            "booking_hoteles": len(hoteles_booking),
+            "serpapi_hoteles": len(hoteles_serpapi),
+            "hoteles": hoteles_combinados
+        }, 200
+
     except Exception as e:
-        logging.exception("Error al obtener el JSON de la solicitud.")
-        return {"error": f"Error al procesar la solicitud: {str(e)}"}
+        logging.error(f"Error: {str(e)}")
+        return {"error": str(e), "success": False}, 500
 
-    try:
-        if not all(key in request_json for key in ["ciudad_destino_vacaciones", "fecha_salida", "fecha_vuelta"]):
-            logging.error("Faltan campos obligatorios en el JSON de entrada.")
-            return {"error": "Faltan datos obligatorios para la búsqueda de hoteles"}
-
-        dest_id, search_type = await obtener_id_destino_hotel(request_json["ciudad_destino_vacaciones"])
-        params_hotel = {
-            "dest_id": dest_id,
-            "search_type": search_type,
-            "arrival_date": "-".join(reversed(request_json["fecha_salida"].split("-"))),
-            "departure_date": "-".join(reversed(request_json["fecha_vuelta"].split("-"))),
-            "room_qty": str(request_json.get("rooms", 1))
-        }
-
-        url_hotel = f"https://{FLIGHT_HOTEL_HOST}/api/v1/hotels/searchHotels"
-        async with httpx.AsyncClient() as client:
-            resp_hotel = await client.get(url_hotel, headers=FLIGHT_HOTEL_HEADERS, params=params_hotel, timeout=20)
-            resp_hotel.raise_for_status()
-            data_hoteles = resp_hotel.json()
-
-        hoteles_procesados = procesar_hoteles(data_hoteles)
-        insertar_en_bigquery(hoteles_procesados)
-
-        try:
-            if hoteles_procesados:
-                headers = {"Content-Type": "application/json"}
-                async with httpx.AsyncClient() as client:
-                    await client.post(ENDPOINT_HOTELES_LIMPIOS, headers=headers, json=hoteles_procesados)
-        except Exception as e:
-            logging.warning(f"No se pudo enviar a /hoteles/limpios: {str(e)}")
-
-        return {"fuente": "booking", "resultados": data_hoteles, "procesados": len(hoteles_procesados)}
-
-    except Exception as e:
-        logging.exception("Fallo general en la ejecución de buscar_hoteles")
-        return {"error": str(e)}

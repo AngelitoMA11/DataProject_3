@@ -1,4 +1,5 @@
 [
+  {"name": "Compañia", "type": "STRING", "mode": "NULLABLE"},
   {"name": "Aerolinea", "type": "STRING", "mode": "NULLABLE"},
   {"name": "PrecioEur", "type": "INTEGER", "mode": "NULLABLE"},
   {"name": "FechaSalida", "type": "STRING", "mode": "NULLABLE"},
