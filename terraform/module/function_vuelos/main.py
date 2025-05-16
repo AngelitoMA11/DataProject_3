@@ -1,209 +1,183 @@
+import http.client
 import json
 import os
-import httpx
-import urllib.parse
-import pandas as pd
+from urllib.parse import urlencode
+from serpapi import GoogleSearch
 from google.cloud import bigquery
-import functions_framework
-import google.cloud.logging
-import traceback
+from flask import jsonify
+import logging  # Importa la biblioteca de logging
 
-# Configuración
+# === CONFIGURACIÓN ===
+SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 PROJECT_ID = os.environ.get("PROJECT_ID")
 DATASET = os.environ.get("DATASET")
 TABLE = os.environ.get("TABLE")
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
-FLIGHT_HOTEL_HOST = "booking-com15.p.rapidapi.com"
-FLIGHT_HOTEL_HEADERS = {
+
+# === HEADERS BOOKING ===
+RAPIDAPI_HOST = "booking-com18.p.rapidapi.com"
+RAPIDAPI_HEADERS = {
     "x-rapidapi-key": RAPIDAPI_KEY,
-    "x-rapidapi-host": FLIGHT_HOTEL_HOST
+    "x-rapidapi-host": RAPIDAPI_HOST
 }
-ENDPOINT_BASE = os.environ.get("API_DATA_URL")
-ENDPOINT_VUELOS_VUELTA = f"{ENDPOINT_BASE}/vuelos/limpios"
 
+# === CONFIGURACIÓN DE LOGGING ===
+logging.basicConfig(level=logging.INFO,  # Nivel mínimo de los logs que se capturan
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Inicializar cliente de logging
-client_logging = google.cloud.logging.Client()
-client_logging.setup_logging()
-import logging
+def ms_a_duracion(ms):
+    total_min = ms // 60000
+    horas = total_min // 60
+    minutos = total_min % 60
+    return f"{horas}h {minutos}m"
 
-async def obtener_id_ciudad(ciudad: str) -> str:
-    async with httpx.AsyncClient() as client:
-        query = urllib.parse.quote(ciudad)
-        url = f"https://{FLIGHT_HOTEL_HOST}/api/v1/flights/searchDestination?query={query}"
-        resp = await client.get(url, headers=FLIGHT_HOTEL_HEADERS, timeout=10)
-        resp.raise_for_status()
-        data = resp.json().get("data", [])
-        for item in data:
-            if "airport" in item.get("type", "").lower():
-                return item["id"]
-        raise ValueError(f"Aeropuerto no encontrado para {ciudad}")
-
-def construir_parametros_api_vuelo(req: dict, origin_id: str, destination_id: str) -> dict:
-    fecha_salida = "-".join(reversed(req["fecha_salida"].split("-")))
-    return {
-        "fromId": origin_id,
-        "toId": destination_id,
-        "departDate": fecha_salida,
-        "stops": req.get("stops", "none"),
-        "adults": str(req.get("adults", 1)),
-        "children": req.get("children", "0"),
-        "cabinClass": req.get("cabin_class", "ECONOMY"),
-        "currency_code": req.get("currency", "EUR")
+# === BOOKING ===
+def buscar_en_booking(payload):
+    conn = http.client.HTTPSConnection(RAPIDAPI_HOST)
+    params = {
+        "fromId": payload["ciudad_origen"],
+        "toId": payload["ciudad_destino"],
+        "departureDate": payload["fecha_salida"],
+        "cabinClass": payload["cabin_class"],
+        "numberOfAdults": payload["adults"]
     }
+    if payload["tipo_de_viaje"] == 1:
+        params["returnDate"] = payload["fecha_vuelta"]
+    conn.request("GET", f"/flights/search-return?{urlencode(params)}", headers=RAPIDAPI_HEADERS)
+    res = conn.getresponse()
+    return json.loads(res.read().decode("utf-8"))
 
-def procesar_vuelos(ofertas):
-    registros = []
-    for offer in ofertas:
-        segments = offer.get("segments", [])
-        if not segments:
-            continue
+def limpiar_booking(data):
+    vuelos = []
+    for vuelo in data.get("data", {}).get("flights", []):
+        for i, tramo in enumerate(vuelo.get("bounds", [])):
+            try:
+                seg = tramo["segments"][0]
+                airline = seg["marketingCarrier"]["name"]
+                logo = seg["marketingCarrier"].get("logoUrl", "")
+                salida = seg["departuredAt"].replace("T", " ")
+                llegada = tramo["segments"][-1]["arrivedAt"].replace("T", " ")
+                duracion = ms_a_duracion(tramo.get("duration", 0))
+                escalas = len(tramo["segments"]) - 1
+                escalas_en = [s["arrivalAirport"]["name"] for s in tramo["segments"][:-1]]
+                precio = round(vuelo["travelerPrices"][0]["price"]["price"]["value"] / 100)
+                enlace = vuelo.get("shareableUrl", "")
+                vuelos.append({
+                    "Aerolinea": airline,
+                    "PrecioEur": precio,
+                    "FechaSalida": salida,
+                    "FechaLlegada": llegada,
+                    "Duración": duracion,
+                    "Escalas": escalas,
+                    "EscalasEn": ", ".join(escalas_en),
+                    "LogoUrl": logo,
+                    "EnlaceCompra": enlace
+                })
+            except Exception as e:
+                logging.error(f"[Booking] Error: {e}", exc_info=True)  # Loguea el error con detalle
+    return vuelos
 
-        first_leg = segments[0]["legs"][0] if segments[0].get("legs") else {}
-        last_leg = segments[-1]["legs"][-1] if segments[-1].get("legs") else {}
+# === SERPAPI ===
+def buscar_en_serpapi(payload):
+    params = {
+        "api_key": SERPAPI_KEY,
+        "engine": "google_flights",
+        "hl": "es",
+        "gl": "es",
+        "departure_id": payload["ciudad_origen"],
+        "arrival_id": payload["ciudad_destino"],
+        "outbound_date": payload["fecha_salida"],
+        "currency": "EUR",
+        "type": str(payload["tipo_de_viaje"]),
+        "adults": str(payload["adults"])
+    }
+    if payload["tipo_de_viaje"] == 1:
+        params["return_date"] = payload["fecha_vuelta"]
+    search = GoogleSearch(params)
+    return search.get_dict()
 
-        ciudad_salida = first_leg.get("departureAirport", {}).get("cityName")
-        ciudad_llegada = last_leg.get("arrivalAirport", {}).get("cityName")
+def limpiar_serpapi(data):
+    vuelos = []
+    url = data.get("search_metadata", {}).get("google_flights_url", "")
+    for tipo_raw in ["best_flights", "other_flights"]:
+        for vuelo in data.get(tipo_raw, []):
+            try:
+                segs = vuelo.get("flights", [])
+                if not segs:
+                    continue
+                salida = segs[0]["departure_airport"]["time"]
+                llegada = segs[-1]["arrival_airport"]["time"]
+                airline = segs[0]["airline"]
+                logo = segs[0]["airline_logo"]
+                escalas = len(segs) - 1
+                escalas_en = [l.get("name") for l in vuelo.get("layovers", [])] if vuelo.get("layovers") else []
+                duracion = vuelo.get("total_duration", "No disponible")
+                precio = int(str(vuelo.get("price", "0")).replace("€", "").strip())
 
-        salida_dt = first_leg.get("departureTime", "")
-        llegada_dt = last_leg.get("arrivalTime", "")
-        dia_salida, hora_salida = salida_dt.split("T") if "T" in salida_dt else ("", "")
-        dia_llegada, hora_llegada = llegada_dt.split("T") if "T" in llegada_dt else ("", "")
+                vuelos.append({
+                    "Aerolinea": airline,
+                    "PrecioEur": precio,
+                    "FechaSalida": salida,
+                    "FechaLlegada": llegada,
+                    "Duración": duracion,
+                    "Escalas": escalas,
+                    "EscalasEn": ", ".join(escalas_en),
+                    "LogoUrl": logo,
+                    "EnlaceCompra": url
+                })
+            except Exception as e:
+                logging.error(f"[SerpAPI] Error: {e}", exc_info=True)  # Loguea el error con detalle
+    return vuelos
 
-        duracion_segundos = sum(seg.get("totalTime", 0) for seg in segments)
-        horas = duracion_segundos // 3600
-        minutos = (duracion_segundos % 3600) // 60
-        duracion_legible = f"{int(horas)}h {int(minutos)}m"
-
-        escalas = sum(len(seg.get("legs", [])) - 1 for seg in segments)
-
-        ciudades_escala = []
-        for seg in segments:
-            legs = seg.get("legs", [])
-            for i in range(len(legs) - 1):
-                city = legs[i].get("arrivalAirport", {}).get("cityName")
-                if city:
-                    ciudades_escala.append(city)
-
-        try:
-            aerolinea = segments[0]["legs"][0]["carriersData"][0]["name"]
-        except (IndexError, KeyError, TypeError):
-            aerolinea = ""
-
-        precio_total = offer.get("priceBreakdown", {}).get("total", {})
-        precio_eur = precio_total.get("units", 0) + precio_total.get("nanos", 0) / 1e9
-
-        registros.append({
-            "fuente": "booking",
-            "ciudad_salida": ciudad_salida,
-            "ciudad_llegada": ciudad_llegada,
-            "dia_salida": dia_salida,
-            "hora_salida": hora_salida,
-            "dia_llegada": dia_llegada,
-            "hora_llegada": hora_llegada,
-            "aerolinea": aerolinea,
-            "precio_eur": round(precio_eur, 2),
-            "tipo_trayecto": offer.get("tripType"),
-            "duracion": duracion_legible,
-            "numero_escalas": escalas,
-            "ciudades_escala": ciudades_escala
-        })
-
-    return registros
-
-def preparar_dataframe(vuelos):
-    df = pd.DataFrame(vuelos)
-    if df.empty:
-        return df
-
-    df["dia_salida"] = pd.to_datetime(df["dia_salida"], errors="coerce").dt.date
-    df["dia_llegada"] = pd.to_datetime(df["dia_llegada"], errors="coerce").dt.date
-    df["hora_salida"] = df["hora_salida"].fillna("").astype(str).apply(lambda x: x if ":" in x else "")
-    df["hora_llegada"] = df["hora_llegada"].fillna("").astype(str).apply(lambda x: x if ":" in x else "")
-    df["ciudad_salida"] = df["ciudad_salida"].fillna("").astype(str)
-    df["ciudad_llegada"] = df["ciudad_llegada"].fillna("").astype(str)
-    df["aerolinea"] = df["aerolinea"].fillna("").astype(str)
-    df["tipo_trayecto"] = df["tipo_trayecto"].fillna("").astype(str)
-    df["duracion"] = df["duracion"].fillna("").astype(str)
-    df["ciudades_escala"] = df["ciudades_escala"].apply(lambda x: ", ".join(x) if isinstance(x, list) else str(x)).fillna("")
-
-    return df
-
-def insertar_en_bigquery(df):
-    if df.empty:
-        return
+# === BIGQUERY ===
+def insertar_en_bigquery(vuelos, PROJECT_ID, DATASET, TABLE):
     client = bigquery.Client(project=PROJECT_ID)
-    tabla_id = f"{PROJECT_ID}.{DATASET}.{TABLE}"
-    job = client.load_table_from_dataframe(df, tabla_id)
-    job.result()
+    tabla_ref = f"{PROJECT_ID}.{DATASET}.{TABLE}"
 
-@functions_framework.http
-async def buscar_vuelos(request):
+    errors = client.insert_rows_json(tabla_ref, vuelos)
+    if errors == []:
+        logging.info(f"✅ Insertados {len(vuelos)} registros en BigQuery.")
+        return True
+    else:
+        logging.error(f"❌ Errores al insertar en BigQuery: {errors}")
+        return False
+
+# === MAIN (Cloud Function Entry Point) ===
+def buscar_vuelos(request):
+    """
+    Cloud Function que procesa datos de vuelos, los guarda en BigQuery
+    y los devuelve como JSON.
+    """
     try:
         request_json = request.get_json(silent=True)
         if not request_json:
-            logging.error("Cuerpo JSON no válido o ausente.")
-            return {"error": "No se proporcionó un cuerpo JSON válido"}
-    except Exception as e:
-        logging.exception("Error al obtener el JSON de la solicitud.")
-        return {"error": f"Error al procesar la solicitud: {str(e)}"}
+            logging.error("No JSON payload provided", exc_info=True)
+            return jsonify({"error": "No JSON payload provided"}), 400
 
-    try:
-        if not all(k in request_json for k in ["ciudad_origen", "ciudad_destino_aeropuerto", "fecha_salida"]):
-            logging.error("Faltan campos obligatorios en el JSON de entrada.")
-            return {"error": "Faltan datos obligatorios para la búsqueda de vuelos"}
+        payload = request_json
 
-        origin_id = await obtener_id_ciudad(request_json["ciudad_origen"])
-        dest_id = await obtener_id_ciudad(request_json["ciudad_destino_aeropuerto"])
-        params_ida = construir_parametros_api_vuelo(request_json, origin_id, dest_id)
+        logging.info("🔎 Booking...")
+        resultado_booking = buscar_en_booking(payload)
+        vuelos_booking = limpiar_booking(resultado_booking)
+        logging.info("Resultados de Booking procesados.")
 
-        url_vuelo = f"https://{FLIGHT_HOTEL_HOST}/api/v1/flights/searchFlights"
-        async with httpx.AsyncClient() as client:
-            resp_ida = await client.get(url_vuelo, headers=FLIGHT_HOTEL_HEADERS, params=params_ida, timeout=20)
-            resp_ida.raise_for_status()
-            data_ida = resp_ida.json()
+        logging.info("🔎 SerpAPI...")
+        resultado_serpapi = buscar_en_serpapi(payload)
+        vuelos_serpapi = limpiar_serpapi(resultado_serpapi)
+        logging.info("Resultados de SerpAPI procesados.")
 
-        resultados_vuelos = {"ida": data_ida["data"], "vuelta": None}
+        vuelos_combinados = vuelos_booking + vuelos_serpapi
 
-        if request_json.get("fecha_vuelta"):
-            vuelo_vuelta = {
-                "ciudad_origen": request_json["ciudad_destino_aeropuerto"],
-                "ciudad_destino_aeropuerto": request_json["ciudad_origen"],
-                "fecha_salida": request_json["fecha_vuelta"],
-                "stops": request_json.get("stops", "none"),
-                "adults": request_json.get("adults", 1),
-                "children": request_json.get("children", "0"),
-                "cabin_class": request_json.get("cabin_class", "ECONOMY"),
-                "currency": request_json.get("currency", "EUR")
-            }
-            params_vuelta = construir_parametros_api_vuelo(vuelo_vuelta, dest_id, origin_id)
-            async with httpx.AsyncClient() as client:
-                resp_vuelta = await client.get(url_vuelo, headers=FLIGHT_HOTEL_HEADERS, params=params_vuelta, timeout=20)
-                resp_vuelta.raise_for_status()
-                vuelos_vuelta = resp_vuelta.json()
-                resultados_vuelos["vuelta"] = vuelos_vuelta["data"]
+        # Insertar en BigQuery
+        insercion_exitosa = insertar_en_bigquery(vuelos_combinados, PROJECT_ID, DATASET, TABLE)
 
-        vuelos_ida = procesar_vuelos(resultados_vuelos["ida"].get("flightOffers", []))
-        vuelos_vuelta = []
-        if resultados_vuelos["vuelta"]:
-            vuelos_vuelta = procesar_vuelos(resultados_vuelos["vuelta"].get("flightOffers", []))
-
-        todos_vuelos = vuelos_ida + vuelos_vuelta
-        df = preparar_dataframe(todos_vuelos)
-        insertar_en_bigquery(df)
-
-        # Enviar resultados al endpoint /vuelos
-        try:
-            if not df.empty:
-                headers = {"Content-Type": "application/json"}
-                payload = df.to_dict(orient="records")
-                async with httpx.AsyncClient() as client:
-                    await client.post(ENDPOINT_VUELOS_VUELTA, headers=headers, json=payload)
-        except Exception as e:
-            logging.warning(f"No se pudo enviar a /vuelos: {str(e)}")
-
-        return {"fuente": "booking", "resultados": resultados_vuelos, "procesados": len(todos_vuelos)}
+        if insercion_exitosa:
+            logging.info("Datos insertados correctamente en BigQuery.  Devolviendo resultados.")
+            return jsonify(vuelos_combinados), 200
+        else:
+            logging.error("Error al insertar datos en BigQuery.", exc_info=True)
+            return jsonify({"error": "Error al insertar en BigQuery"}), 500
 
     except Exception as e:
-        logging.exception("Fallo general en la ejecución de buscar_vuelos")
-        return {"error": str(e)}
+        logging.error(f"💥 Error general: {e}", exc_info=True) # Loguea el error general con detalle
+        return jsonify({"error": f"Error en el procesamiento: {e}"}), 500

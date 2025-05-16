@@ -18,7 +18,7 @@ data "archive_file" "function_zip" {
 resource "google_storage_bucket_object" "function_zip" {
   name   = "${var.name}.zip"
   bucket = google_storage_bucket.function_bucket.name
-  source = "${path.module}/${var.name}.zip"
+  source = "${path.module}/${var.name}.zip"  
 }
 
 resource "google_cloudfunctions2_function" "function_coches" {
@@ -38,7 +38,7 @@ resource "google_cloudfunctions2_function" "function_coches" {
   }
 
   service_config {
-    available_memory = "256M"
+    available_memory = "512M"
     timeout_seconds  = 60
     environment_variables = var.env_variables
   }

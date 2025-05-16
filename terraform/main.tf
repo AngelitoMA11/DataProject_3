@@ -30,7 +30,7 @@ module "function_hoteles" {
     DATASET        = var.bq_dataset
     TABLE          = var.table_hoteles
     RAPIDAPI_KEY   = var.RAPIDAPI_KEY
-    API_DATA_URL   = module.apidata.api_data_url
+    SERPAPI_KEY    = var.SERPAPI_KEY
   }
   depends_on = [ module.apidata ]
 
@@ -48,6 +48,7 @@ module "function_vuelos" {
     TABLE          = var.table_vuelos
     RAPIDAPI_KEY   = var.RAPIDAPI_KEY
     API_DATA_URL   = module.apidata.api_data_url
+    SERPAPI_KEY    = var.SERPAPI_KEY
   }
   depends_on = [ module.apidata ]
 
@@ -92,7 +93,8 @@ module "apiagent" {
   LANGRAPH_API_KEY       = var.LANGRAPH_API_KEY
   DEFAULT_CURRENCY       = var.DEFAULT_CURRENCY
   GOOGLE_API_KEY         = var.GOOGLE_API_KEY
-  SERPAPI_API_KEY        = var.SERPAPI
+  SERPAPI_API_KEY        = var.SERPAPI_KEY
+  
 }
 
 module "streamlit" {

@@ -1,16 +1,11 @@
 [
-    {"name": "fuente", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "ciudad_salida", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "ciudad_llegada", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "dia_salida", "type": "DATE", "mode": "NULLABLE"},
-    {"name": "hora_salida", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "dia_llegada", "type": "DATE", "mode": "NULLABLE"},
-    {"name": "hora_llegada", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "aerolinea", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "precio_eur", "type": "FLOAT", "mode": "NULLABLE"},
-    {"name": "tipo_trayecto", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "duracion", "type": "STRING", "mode": "NULLABLE"},
-    {"name": "numero_escalas", "type": "INTEGER", "mode": "NULLABLE"},
-    {"name": "ciudades_escala", "type": "STRING", "mode": "NULLABLE"}
-  ]
-  
+  {"name": "Aerolinea", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "PrecioEur", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "FechaSalida", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "FechaLlegada", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Duración", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Escalas", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "EscalasEn", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "LogoUrl", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "EnlaceCompra", "type": "STRING", "mode": "NULLABLE"}
+]

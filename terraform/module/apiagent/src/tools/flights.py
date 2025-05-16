@@ -24,15 +24,15 @@ with st.form("flight_search_form"):
     
     with col1:
         ciudad_origen = st.text_input("Ciudad de Origen", "Valencia")
-        ciudad_destino_aeropuerto = st.text_input("Aeropuerto de Destino", "Alicante")
+        ciudad_origen_iata = st.text_input("IATA Ciudad de Origen", "VLC")
+        ciudad_destino = st.text_input("Aeropuerto de Destino", "Alicante")
+        ciudad_destino_iata = st.text_input("IATA Ciudad de Destino", "ALC")
         ciudad_destino_vacaciones = st.text_input("Ciudad de Vacaciones", "Denia")
         fecha_salida = st.text_input("Fecha de Salida", default_departure)
         fecha_vuelta = st.text_input("Fecha de Vuelta", default_return)
     
     with col2:
-        stops = st.selectbox("Escalas", ["none", "1", "2"], index=0)
         adults = st.number_input("Adultos", min_value=1, max_value=9, value=1)
-        children = st.number_input("Niños", min_value=0, max_value=9, value=1)
         cabin_class = st.selectbox("Clase", ["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], index=0)
         currency = st.selectbox("Moneda", ["EUR", "USD", "GBP"], index=0)
         rooms = st.number_input("Habitaciones", min_value=1, max_value=5, value=1)
@@ -43,16 +43,14 @@ if submit_button:
     # Prepare the payload
     payload = {
         "ciudad_origen": ciudad_origen,
-        "ciudad_destino_aeropuerto": ciudad_destino_aeropuerto,
+        "ciudad_origen_iata": ciudad_origen_iata,
+        "ciudad_destino": ciudad_destino,
+        "ciudad_destino_iata": ciudad_destino_iata,
         "ciudad_destino_vacaciones": ciudad_destino_vacaciones,
         "fecha_salida": fecha_salida,
         "fecha_vuelta": fecha_vuelta,
-        "stops": stops,
         "adults": adults,
-        "children": str(children),
-        "cabin_class": cabin_class,
-        "currency": currency,
-        "rooms": rooms
+        "cabin_class": cabin_class
     }
 
     headers = {

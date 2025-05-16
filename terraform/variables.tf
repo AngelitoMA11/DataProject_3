@@ -126,7 +126,7 @@ variable "GOOGLE_API_KEY" {
   sensitive   = true
 }
 
-variable "SERPAPI" {
+variable "SERPAPI_KEY" {
   description = "Clave de API de Google."
   type        = string
   sensitive   = true
