@@ -13,7 +13,7 @@ st.set_page_config(
 st.title("📋 Encuesta de Datos de Vuelo")
 
 base_url = os.environ.get("DATA_API_URL")  # Asumo que necesitas esto para enviar los resultados
-url_api = f"{base_url}/vuelos"  #  Ajusta la URL si es diferente
+url_api = f"{base_url}/hoteles"  #  Ajusta la URL si es diferente
 
 today = date.today()
 default_departure = today + timedelta(days=7)
@@ -23,32 +23,29 @@ with st.form("flight_survey_form"):
     col1, col2 = st.columns(2)
 
     with col1:
-        ciudad_origen = st.text_input("Ciudad de Origen (IATA)", "LHR")
-        ciudad_destino = st.text_input("Ciudad de Destino (IATA)", "DEL")
-        fecha_salida = st.text_input("Fecha de Salida", str(default_departure))
-        fecha_vuelta = st.text_input("Fecha de Vuelta", str(default_return))
+        ciudad = st.text_input("Ciudad de destino (Nombre en inglés y país)", "Manchester, United Kingdom")
+        fecha_entrada = st.text_input("Fecha de entrada", str(default_departure))
+        fecha_vuelta = st.text_input("Fecha de vuelta", str(default_return))
 
     with col2:
-        adults = st.number_input("Número de Adultos", min_value=1, max_value=9, value=1)
-        cabin_class = st.selectbox("Clase de Cabina", ["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST"], index=0)
-        tipo_de_viaje = st.selectbox("Tipo de Viaje", ["Ida y Vuelta", "Solo Ida"], index=0)
+        adults = st.number_input("Número de adultos", min_value=1, max_value=9, value=1)
+        valoracion_numerica = st.slider("Valoración esperada (1 a 5)", min_value=1, max_value=5, value=4)
 
-    submit_button = st.form_submit_button("Enviar Encuesta")
+    submit_button = st.form_submit_button("Generar Payload")
 
 if submit_button:
-    # Transformar la selección del tipo de viaje al formato numérico
-    tipo_de_viaje_num = 1 if tipo_de_viaje == "Ida y Vuelta" else 2
+    # Mapear la valoración: 3 → 6, 4 → 8, 5 → 10
+    valoracion_map = {1: "2", 2: "4", 3: "6", 4: "8", 5: "10"}
+    valoracion = valoracion_map.get(valoracion_numerica, "8")  # Por defecto 8
 
-    # Prepare the payload
     payload = {
-        "ciudad_origen": ciudad_origen,
-        "ciudad_destino": ciudad_destino,
-        "fecha_salida": fecha_salida,
+        "ciudad": ciudad,
+        "fecha_entrada": fecha_entrada,
         "fecha_vuelta": fecha_vuelta,
-        "adults": int(adults),  # Asegurar que 'adults' sea un entero
-        "cabin_class": cabin_class,
-        "tipo_de_viaje": tipo_de_viaje_num,
+        "adults": adults,
+        "valoración": valoracion
     }
+
 
     headers = {
         'Content-Type': 'application/json'

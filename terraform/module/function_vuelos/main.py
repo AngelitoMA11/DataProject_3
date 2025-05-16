@@ -63,6 +63,7 @@ def limpiar_booking(data):
                 precio = round(vuelo["travelerPrices"][0]["price"]["price"]["value"] / 100)
                 enlace = vuelo.get("shareableUrl", "")
                 vuelos.append({
+                    "Compañia": "Booking",
                     "Aerolinea": airline,
                     "PrecioEur": precio,
                     "FechaSalida": salida,
@@ -115,6 +116,7 @@ def limpiar_serpapi(data):
                 precio = int(str(vuelo.get("price", "0")).replace("€", "").strip())
 
                 vuelos.append({
+                    "Compañia": "Google Flights",
                     "Aerolinea": airline,
                     "PrecioEur": precio,
                     "FechaSalida": salida,
