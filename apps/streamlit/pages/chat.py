@@ -12,6 +12,7 @@ st.set_page_config(
 st.title("🤖 Chat Inteligente")
 
 API_URL = os.environ.get("AGENT_API_URL")
+print(API_URL)
 
 
 # Add a button to view the graph in the sidebar
