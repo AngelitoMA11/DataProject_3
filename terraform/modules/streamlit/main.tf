@@ -21,7 +21,7 @@ resource "null_resource" "build_push_image" {
   } 
   provisioner "local-exec" {
     command = <<EOT
-        docker build --platform=linux/amd64 -t ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest ${path.module}/../../../streamlit && docker push ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest 
+        docker build --platform=linux/amd64 -t ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest ${path.module}/../../../apps/streamlit && docker push ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest 
     EOT
   }
   depends_on = [null_resource.docker_auth]

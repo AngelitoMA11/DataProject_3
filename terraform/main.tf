@@ -7,7 +7,7 @@ terraform {
 
 
 module "bigquery" {
-  source     = "./module/bigquery"
+  source     = "./modules/bigquery"
   project_id = var.project_id
   bq_dataset = var.bq_dataset
   
@@ -20,7 +20,7 @@ module "bigquery" {
 
 
 module "function_hoteles" {
-  source = "./module/function_hoteles"
+  source = "./modules/function_hoteles"
   project_id     = var.project_id
   region         = var.region
   name           = "hoteles"
@@ -37,7 +37,7 @@ module "function_hoteles" {
 }
 
 module "function_vuelos" {
-  source      = "./module/function_vuelos"
+  source      = "./modules/function_vuelos"
   project_id  = var.project_id
   region      = var.region
   name        = "vuelos"
@@ -56,7 +56,7 @@ module "function_vuelos" {
 
 
 module "function_coches" {
-  source = "./module/function_coches"
+  source = "./modules/function_coches"
   project_id     = var.project_id
   region         = var.region
   name           = "coches"
@@ -72,7 +72,7 @@ module "function_coches" {
 }
 
  module "apidata" {
-  source                 = "./module/apidata"
+  source                 = "./modules/apidata"
   project_id             = var.project_id
   region                 = var.region
   cloud_run_service_name = var.cloud_run_service_api_data
@@ -81,7 +81,7 @@ module "function_coches" {
 }
 
 module "apiagent" {
-  source                 = "./module/apiagent"
+  source                 = "./modules/apiagent"
   project_id             = var.project_id
   region                 = var.region
   cloud_run_service_name = var.cloud_run_service_api_agent
@@ -98,7 +98,7 @@ module "apiagent" {
 }
 
 module "streamlit" {
-  source                 = "./module/streamlit"
+  source                 = "./modules/streamlit"
   project_id             = var.project_id
   region                 = var.region
   cloud_run_service_name = var.cloud_run_service_api_streamlit
@@ -107,7 +107,7 @@ module "streamlit" {
 }
 
 module "injector" {
-  source             = "./module/url_injector"
+  source             = "./modules/url_injector"
   project_id         = var.project_id
   region             = var.region
   api_agent_name     = module.apiagent.api_agent_name
