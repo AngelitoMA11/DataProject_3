@@ -27,17 +27,21 @@ ENDPOINT_COCHES_LIMPIOS = f"{ENDPOINT_BASE}/coches/limpios"
 client_logging = google.cloud.logging.Client()
 client_logging.setup_logging()
 
-async def obtener_pickup_ids(ciudad: str) -> list:
-    async with httpx.AsyncClient() as client:
-        query = urllib.parse.quote(ciudad)
-        url = f"https://{CAR_HOST}/car/auto-complete?query={query}"
-        resp = await client.get(url, headers=CAR_HEADERS, timeout=10)
-        resp.raise_for_status()
-        data = resp.json().get("data", [])
-        airport_ids = [item.get("id") for item in data if item.get("type", "").lower() == "airport"]
-        if not airport_ids:
-            raise ValueError(f"No se encontraron aeropuertos para {ciudad}")
-        return airport_ids
+def obtener_pickup_ids(ciudad_destino: str) -> list:
+    try:
+        with httpx.Client() as client:
+            query = urllib.parse.quote(ciudad_destino)
+            url = f"https://{CAR_HOST}/car/auto-complete?query={query}"
+            resp = client.get(url, headers=CAR_HEADERS, timeout=30)
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            airport_ids = [item.get("id") for item in data if item.get("type", "").lower() == "airport"]
+            if not airport_ids:
+                raise ValueError(f"No se encontraron aeropuertos para {ciudad_destino}")
+            return airport_ids
+    except Exception as e:
+        logging.error(f"Error in obtener_pickup_ids: {e}")
+        return [] # Return empty list in case of error
 
 def procesar_alquileres(data, ciudad, rate=DEFAULT_RATE):
     registros = []
@@ -75,11 +79,22 @@ def preparar_dataframe(registros):
     df = pd.DataFrame(registros)
     if df.empty:
         return df
-    df['Asientos'] = df['Asientos'].fillna(0).astype(int)
+    df['Asientos'] = df['Asientos'] = df['Asientos'].apply(extraer_asientos)
     df['Precio'] = df['Precio'].fillna(0.0)
-    for col in ['Ciudad','Compañía','Vehículo','Categoría','Transmisión']:
+    for col in ['Ciudad', 'Compañía', 'Vehículo', 'Categoría', 'Transmisión']:
         df[col] = df[col].fillna('').astype(str)
     return df
+
+def extraer_asientos(valor):
+    try:
+        if isinstance(valor, (int, float)):
+            return int(valor)
+        if isinstance(valor, str):
+            partes = [int(p) for p in valor.split("+") if p.isdigit()]
+            return sum(partes)
+    except:
+        pass
+    return 0
 
 def insertar_bigquery(df):
     try:
@@ -93,7 +108,7 @@ def insertar_bigquery(df):
         logging.exception("Error al insertar en BigQuery")
 
 @functions_framework.http
-async def buscar_coches(request):
+def buscar_coches(request):
     try:
         request_json = request.get_json(silent=True)
         if not request_json:
@@ -104,14 +119,16 @@ async def buscar_coches(request):
         return {"error": f"Error al procesar la solicitud: {str(e)}"}
 
     try:
-        if not all(key in request_json for key in ["ciudad_destino_aeropuerto", "fecha_salida", "fecha_vuelta"]):
+        if not all(key in request_json for key in ["ciudad_destino", "fecha_salida", "fecha_vuelta"]):
             logging.error("Faltan datos obligatorios para la búsqueda de coches.")
             return {"error": "Faltan datos obligatorios para la búsqueda de coches"}
 
-        ciudad = request_json["ciudad_destino_aeropuerto"]
-        pickup_ids = await obtener_pickup_ids(ciudad)
-        pick_up_date = "-".join(reversed(request_json["fecha_salida"].split("-")))
-        drop_off_date = "-".join(reversed(request_json["fecha_vuelta"].split("-")))
+        ciudad = request_json["ciudad_destino"]
+        fecha_salida = request_json["fecha_salida"]
+        fecha_vuelta = request_json["fecha_vuelta"]
+        pickup_ids = obtener_pickup_ids(ciudad)
+        pick_up_date = pd.to_datetime(fecha_salida, dayfirst=True).strftime("%Y-%m-%d")
+        drop_off_date = pd.to_datetime(fecha_vuelta, dayfirst=True).strftime("%Y-%m-%d")
         pick_up_time = "10:00"
         drop_off_time = "10:00"
         todos_registros = []
@@ -126,26 +143,36 @@ async def buscar_coches(request):
                 "dropOffTime": drop_off_time
             }
             url_car = f"https://{CAR_HOST}/car/search"
-            async with httpx.AsyncClient() as client:
-                resp_car = await client.get(url_car, headers=CAR_HEADERS, params=params_car, timeout=20)
-                resp_car.raise_for_status()
-                data_coches = resp_car.json()
-            registros = procesar_alquileres(data_coches, ciudad)
-            todos_registros.extend(registros)
-            resultados_por_aeropuerto.append({
-                "pickUpId": pid,
-                "resultados": data_coches
-            })
+            try:
+                with httpx.Client() as client:
+                    resp_car = client.get(url_car, headers=CAR_HEADERS, params=params_car, timeout=60)
+                    resp_car.raise_for_status()
+                    data_coches = resp_car.json()
+                    registros = procesar_alquileres(data_coches, ciudad)
+                    todos_registros.extend(registros)
+                    resultados_por_aeropuerto.append({
+                        "pickUpId": pid,
+                        "resultados": data_coches
+                    })
+            except Exception as e:
+                logging.error(f"Error fetching car data for pickup ID {pid}: {e}")
+                # Consider adding an empty list or a default structure to avoid further errors
+                resultados_por_aeropuerto.append({
+                    "pickUpId": pid,
+                    "resultados": {"data": {"search_results": []}}  # Ensure structure is correct
+                })
 
         df = preparar_dataframe(todos_registros)
         insertar_bigquery(df)
+        # Añadir esta línea para incluir los resultados en la respuesta HTTP
+        resultados_json = df.to_dict(orient="records")
 
         try:
             if not df.empty:
                 headers = {"Content-Type": "application/json"}
                 payload = df.to_dict(orient="records")
-                async with httpx.AsyncClient() as client:
-                    await client.post(ENDPOINT_COCHES_LIMPIOS, headers=headers, json=payload)
+                with httpx.Client() as client:
+                    client.post(ENDPOINT_COCHES_LIMPIOS, headers=headers, json=payload)
         except Exception as e:
             logging.warning(f"No se pudo enviar a /coches/limpios: {str(e)}")
 
@@ -153,7 +180,8 @@ async def buscar_coches(request):
             "ciudad_destino_aeropuerto": ciudad,
             "fuente": "booking",
             "resultados_por_aeropuerto": resultados_por_aeropuerto,
-            "procesados": len(todos_registros)
+            "procesados": len(todos_registros),
+            "resultados": resultados_json 
         }
 
     except Exception as e:
