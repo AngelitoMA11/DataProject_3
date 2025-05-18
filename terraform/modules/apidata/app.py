@@ -16,7 +16,7 @@ def handle_vuelos():
         return '', 204
     else:
         response = requests.post(FUNC_VUELOS_URL, json=data)
-        return jsonify({"status": response.status_code}), response.status_code
+        return jsonify(response.json()), response.status_code
 
 @app.route('/hoteles', methods=['POST'])
 def handle_hoteles():
@@ -26,7 +26,7 @@ def handle_hoteles():
         return '', 204
     else:
         response = requests.post(FUNC_HOTELES_URL, json=data)
-        return jsonify({"status": response.status_code}), response.status_code
+        return jsonify(response.json()), response.status_code
 
 @app.route('/coches', methods=['POST'])
 def handle_coches():
@@ -36,7 +36,7 @@ def handle_coches():
         return '', 204
     else:
         response = requests.post(FUNC_COCHES_URL, json=data)
-        return jsonify({"status": response.status_code}), response.status_code
+        return jsonify(response.json()), response.status_code
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
