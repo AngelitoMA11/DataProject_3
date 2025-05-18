@@ -12,8 +12,10 @@ st.set_page_config(
 
 st.title("📋 Encuesta de Datos de Vuelo")
 
-base_url = os.environ.get("DATA_API_URL")  # Asumo que necesitas esto para enviar los resultados
-url_api = f"{base_url}/vuelos"  #  Ajusta la URL si es diferente
+
+base_url = os.environ.get("DATA_API_URL")
+url_api = f"{base_url}/vuelos"
+url_api = st.text_input("DATA_API_URL", url_api)
 
 today = date.today()
 default_departure = today + timedelta(days=7)
