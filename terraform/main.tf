@@ -120,3 +120,15 @@ module "injector" {
   api_data_name      = module.apidata.api_data_name
   depends_on         = [module.streamlit, module.apiagent, module.apidata, module.function_coches, module.function_hoteles, module.function_vuelos]
 }
+
+module "grafana" {
+  source           = "./module/grafana"
+  project_id       = var.project_id
+  region           = var.region
+  password_grafana = var.password_grafana
+  user_grafana     = var.user_grafana
+  repository_id    = var.repository_id_grafana
+  grafana_name     = var.grafana_name
+  image_name       = var.image_name_grafana
+
+}
