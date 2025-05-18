@@ -12,11 +12,16 @@ st.set_page_config(
 st.title("🤖 Chat Inteligente")
 
 API_URL = os.environ.get("AGENT_API_URL")
-print(API_URL)
 
-
-# Add a button to view the graph in the sidebar
+# Add agent selector in the sidebar
 with st.sidebar:
+    st.title("Configuración")
+    selected_agent = st.selectbox(
+        "Selecciona el agente",
+        ["Agente 1", "Agente 2"],
+        index=0
+    )
+    
     st.title("Visualización")
     if st.button("Ver flujo del agente"):
         try:
@@ -51,7 +56,8 @@ if prompt := st.chat_input("Escribe tu mensaje"):
     with st.chat_message("assistant"):
         with st.spinner("Pensando..."):
             try:
-                res = requests.post(f"{API_URL}/chat", json={
+                agent_endpoint = "/chat2" if selected_agent == "Agente 2" else "/chat"
+                res = requests.post(f"{API_URL}{agent_endpoint}", json={
                     "message": prompt,
                     "thread_id": st.session_state.thread_id
                 })
