@@ -5,3 +5,4 @@ __pycache__
 
 .terraform/
 terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
