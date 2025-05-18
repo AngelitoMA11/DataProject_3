@@ -4,6 +4,11 @@ langgraph
 langgraph-supervisor
 langchain-google-genai
 uvicorn
+
+google-generativeai
+firecrawl
+serpapi
+google-search-results
 # pydantic
 # httpx
 # loguru

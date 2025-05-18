@@ -5,7 +5,6 @@ import operator
 import os
 from typing import Annotated, TypedDict, List, Optional
 
-from dotenv import load_dotenv
 from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage, ToolMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver # Asegúrate que memorysaver esté configurado para estos campos
@@ -13,12 +12,11 @@ from langgraph.graph import END, StateGraph
 import traceback
 
 # --- IMPORTAR HERRAMIENTAS ---
-from tools.itinerario import comprehensive_itinerary_generator_tool as real_itinerary_tool
-from tools.vuelos import flights_finder
-from tools.hoteles import hotels_finder
-from tools.donde import destination_explorer_tool, initialize_destination_explorer
+from src.tools.itinerario import comprehensive_itinerary_generator_tool as real_itinerary_tool
+from src.tools.vuelos import flights_finder
+from src.tools.hoteles import hotels_finder
+from src.tools.donde import destination_explorer_tool, initialize_destination_explorer
 
-_ = load_dotenv()
 
 CURRENT_YEAR = datetime.datetime.now().year
 
@@ -362,104 +360,102 @@ class Agent:
             tool_call_id = f"error_auto_itinerary_exec_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
             return {"messages": [ToolMessage(tool_call_id=tool_call_id, name=self.itinerary_tool_name, content=result_content)]}
 
+
+travel_agent = Agent(tools=TOOLS)
+
 # --- Execution ---
-if __name__ == "__main__":
-    print("--- Iniciando Agente Orquestador de Viajes Modificado ---")
+# if __name__ == "__main__":
+#     print("--- Iniciando Agente Orquestador de Viajes Modificado ---")
     
-    # Inicializar el explorador de destinos una vez
-    initialize_destination_explorer()
+#     # Inicializar el explorador de destinos una vez
+#     initialize_destination_explorer()
     
-    travel_agent = Agent(tools=TOOLS)
+#     travel_agent = Agent(tools=TOOLS)
     
-    thread_id = f"viaje-realtool-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    config = {"configurable": {"thread_id": thread_id}} # Para MemorySaver
-    
-    print(f"Iniciando conversación con config: {config}")
-    print("Ejemplos de prueba:")
-    print("1. Petición directa: 'Quiero un itinerario para París del 10 al 15 de julio de 2025. Me gusta el arte.'")
-    print("2. Petición automática: 'Busca vuelos y hoteles para Berna del 20 al 25 de mayo de 2025. Me interesa la gastronomía.'")
-    print("3. Exploración de destino: 'No sé a dónde ir, pero me gustaría una ciudad con playa en Europa.'")
-
-    # Estado inicial para la primera ejecución del grafo si no hay memoria
-    initial_graph_state = {
-        "messages": [], # Se llenará con el primer HumanMessage
-        "destination": None,
-        "departure_date": None,
-        "arrival_date": None,
-        "intereses": None,
-        "flight_info_gathered": False,
-        "hotel_info_gathered": False,
-        "itinerary_generated": False,
-        "last_flight_info": None,
-        "last_hotel_info": None,
-        "explorer_conversation_history": None, # Inicialmente no hay historial
-        "explorer_is_finished": True # Se considera terminado hasta que se use explícitamente
-    }
+#     thread_id = f"viaje-realtool-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+#     config = {"configurable": {"thread_id": thread_id}} # Para MemorySaver
 
 
-    while True:
-        user_input = input("Usuario: ")
-        if user_input.lower() in ["salir", "exit"]:
-            print("Agente: ¡Hasta luego!")
-            break
+#     # Estado inicial para la primera ejecución del grafo si no hay memoria
+#     initial_graph_state = {
+#         "messages": [], # Se llenará con el primer HumanMessage
+#         "destination": None,
+#         "departure_date": None,
+#         "arrival_date": None,
+#         "intereses": None,
+#         "flight_info_gathered": False,
+#         "hotel_info_gathered": False,
+#         "itinerary_generated": False,
+#         "last_flight_info": None,
+#         "last_hotel_info": None,
+#         "explorer_conversation_history": None, # Inicialmente no hay historial
+#         "explorer_is_finished": True # Se considera terminado hasta que se use explícitamente
+#     }
 
-        # Recuperar el estado actual de la memoria para esta conversación
-        current_thread_state = travel_agent.graph.get_state(config)
+
+#     while True:
+#         user_input = input("Usuario: ")
+#         if user_input.lower() in ["salir", "exit"]:
+#             print("Agente: ¡Hasta luego!")
+#             break
+
+#         # Recuperar el estado actual de la memoria para esta conversación
+#         current_thread_state = travel_agent.graph.get_state(config)
         
-        # Si es la primera vez o no hay estado, usar el estado inicial
-        # Pero 'messages' debe construirse para el input del grafo
-        if not current_thread_state or not current_thread_state.values.get("messages"):
-             # Si no hay historial de mensajes, empezamos con el del usuario.
-             # Los otros campos del estado vendrán de initial_graph_state si MemorySaver no los tiene.
-             # LangGraph y MemorySaver deberían manejar la fusión del nuevo input con el estado almacenado.
-             messages_for_graph = [HumanMessage(content=user_input)]
-             input_for_graph = { "messages": messages_for_graph }
-             # Los otros campos se tomarán de la memoria o defaults si no existen
-        else:
-            # Hay estado, añadir el nuevo mensaje del usuario
-            # MemorySaver espera que el operador 'add' en 'messages' funcione.
-            input_for_graph = {"messages": [HumanMessage(content=user_input)]}
+#         # Si es la primera vez o no hay estado, usar el estado inicial
+#         # Pero 'messages' debe construirse para el input del grafo
+#         if not current_thread_state or not current_thread_state.values.get("messages"):
+#              # Si no hay historial de mensajes, empezamos con el del usuario.
+#              # Los otros campos del estado vendrán de initial_graph_state si MemorySaver no los tiene.
+#              # LangGraph y MemorySaver deberían manejar la fusión del nuevo input con el estado almacenado.
+#              messages_for_graph = [HumanMessage(content=user_input)]
+#              input_for_graph = { "messages": messages_for_graph }
+#              # Los otros campos se tomarán de la memoria o defaults si no existen
+#         else:
+#             # Hay estado, añadir el nuevo mensaje del usuario
+#             # MemorySaver espera que el operador 'add' en 'messages' funcione.
+#             input_for_graph = {"messages": [HumanMessage(content=user_input)]}
 
 
-        final_graph_output_state_values = None # Para el estado final después del stream
+#         final_graph_output_state_values = None # Para el estado final después del stream
 
-        print(f"--- Enviando al grafo (Thread ID: {config['configurable']['thread_id']}) ---")
-        try:
-            for event_chunk in travel_agent.graph.stream(input_for_graph, config=config, stream_mode="values"):
-                final_graph_output_state_values = event_chunk # El último chunk es el estado final
-        except Exception as e:
-            print(f"!!!! GRAPH STREAM ERROR: {type(e).__name__} - {e} !!!!")
-            traceback.print_exc()
-            final_graph_output_state_values = {"messages": [AIMessage(content=f"Se produjo un error en el stream del grafo: {e}")]}
+#         print(f"--- Enviando al grafo (Thread ID: {config['configurable']['thread_id']}) ---")
+#         try:
+#             for event_chunk in travel_agent.graph.stream(input_for_graph, config=config, stream_mode="values"):
+#                 final_graph_output_state_values = event_chunk # El último chunk es el estado final
+#         except Exception as e:
+#             print(f"!!!! GRAPH STREAM ERROR: {type(e).__name__} - {e} !!!!")
+#             traceback.print_exc()
+#             final_graph_output_state_values = {"messages": [AIMessage(content=f"Se produjo un error en el stream del grafo: {e}")]}
 
 
-        print(f"--- Stream finalizado ---")
+#         print(f"--- Stream finalizado ---")
 
-        ai_response_to_user = None
-        if final_graph_output_state_values and final_graph_output_state_values.get("messages"):
-            output_messages = final_graph_output_state_values["messages"]
+#         ai_response_to_user = None
+#         if final_graph_output_state_values and final_graph_output_state_values.get("messages"):
+#             output_messages = final_graph_output_state_values["messages"]
             
-            for message in reversed(output_messages):
-                if isinstance(message, AIMessage) and message.content and message.content.strip():
-                    ai_response_to_user = message.content
-                    break
+#             for message in reversed(output_messages):
+#                 if isinstance(message, AIMessage) and message.content and message.content.strip():
+#                     ai_response_to_user = message.content
+#                     break
             
-            if not ai_response_to_user and output_messages and isinstance(output_messages[-1], ToolMessage):
-                tool_message = output_messages[-1]
-                # Si el último mensaje es de herramienta (ej. explorador) y AI anterior estaba vacío
-                if len(output_messages) >= 2 and isinstance(output_messages[-2], AIMessage) and \
-                   (not output_messages[-2].content or not output_messages[-2].content.strip()):
-                    print(f"  [Debug Info] Último AIMessage vacío. Usando contenido del ToolMessage (Nombre: {tool_message.name}): {str(tool_message.content)[:200]}...")
-                    ai_response_to_user = str(tool_message.content)
+#             if not ai_response_to_user and output_messages and isinstance(output_messages[-1], ToolMessage):
+#                 tool_message = output_messages[-1]
+#                 # Si el último mensaje es de herramienta (ej. explorador) y AI anterior estaba vacío
+#                 if len(output_messages) >= 2 and isinstance(output_messages[-2], AIMessage) and \
+#                    (not output_messages[-2].content or not output_messages[-2].content.strip()):
+#                     print(f"  [Debug Info] Último AIMessage vacío. Usando contenido del ToolMessage (Nombre: {tool_message.name}): {str(tool_message.content)[:200]}...")
+#                     ai_response_to_user = str(tool_message.content)
         
-        if ai_response_to_user:
-            print(f"Agente: {ai_response_to_user}")
-        else:
-            print("Agente: No se pudo extraer una respuesta clara de la IA del estado final del grafo.")
-            if final_graph_output_state_values and final_graph_output_state_values.get("messages"):
-                 last_message_obj = final_graph_output_state_values["messages"][-1]
-                 print(f"  [Debug Info] Último mensaje en estado: {type(last_message_obj)} -> {getattr(last_message_obj, 'content', str(last_message_obj))[:300]}")
-            elif final_graph_output_state_values:
-                 print(f"  [Debug Info] Estado final del grafo (sin mensajes): {final_graph_output_state_values}")
-            else:
-                 print(f"  [Debug Info] No hubo estado final del grafo.")
+#         if ai_response_to_user:
+#             print(f"Agente: {ai_response_to_user}")
+#         else:
+#             print("Agente: No se pudo extraer una respuesta clara de la IA del estado final del grafo.")
+#             if final_graph_output_state_values and final_graph_output_state_values.get("messages"):
+#                  last_message_obj = final_graph_output_state_values["messages"][-1]
+#                  print(f"  [Debug Info] Último mensaje en estado: {type(last_message_obj)} -> {getattr(last_message_obj, 'content', str(last_message_obj))[:300]}")
+#             elif final_graph_output_state_values:
+#                  print(f"  [Debug Info] Estado final del grafo (sin mensajes): {final_graph_output_state_values}")
+#             else:
+#                  print(f"  [Debug Info] No hubo estado final del grafo.")

@@ -3,7 +3,6 @@
 import os
 import google.generativeai as genai
 from firecrawl import FirecrawlApp
-from dotenv import load_dotenv
 import json
 import re
 import traceback
@@ -15,7 +14,6 @@ from langgraph.graph import StateGraph, END
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-load_dotenv()
 
 class ItineraryState(TypedDict):
     traveler_data: Dict[str, Any]

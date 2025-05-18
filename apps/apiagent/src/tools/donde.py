@@ -1,6 +1,5 @@
 import os
 import google.generativeai as genai
-from dotenv import load_dotenv
 import json
 import re
 from typing import TypedDict, Annotated, List, Union, Optional
