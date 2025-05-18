@@ -122,7 +122,7 @@ module "injector" {
 }
 
 module "grafana" {
-  source           = "./module/grafana"
+  source           = "./modules/grafana"
   project_id       = var.project_id
   region           = var.region
   password_grafana = var.password_grafana
