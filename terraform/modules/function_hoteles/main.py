@@ -26,7 +26,7 @@ def buscar_en_serpapi(payload):
         "currency": "EUR",
         "hl": "es",
         "gl": "es",
-        "num": "20",
+        "num": "40",
         "adults": str(payload.get("adults", 2))
     }
     if payload.get("max_price"):
