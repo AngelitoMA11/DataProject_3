@@ -94,6 +94,10 @@ module "apiagent" {
   DEFAULT_CURRENCY       = var.DEFAULT_CURRENCY
   GOOGLE_API_KEY         = var.GOOGLE_API_KEY
   SERPAPI_API_KEY        = var.SERPAPI_KEY
+  SKYSCANNER_API_KEY     = var.SKYSCANNER_API_KEY
+  EXA_API_KEY            = var.EXA_API_KEY
+  FIRECRAWL_API_KEY      = var.FIRECRAWL_API_KEY
+  TAVILY_API_KEY         = var.TAVILY_API_KEY
   
 }
 

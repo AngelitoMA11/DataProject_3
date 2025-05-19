@@ -69,3 +69,22 @@ variable "SERPAPI_API_KEY" {
   sensitive   = true
 }
 
+variable "TAVILY_API_KEY" {
+  type      = string
+  sensitive = true
+}
+
+variable "FIRECRAWL_API_KEY" {
+  type      = string
+  sensitive = true
+}
+
+variable "EXA_API_KEY" {
+  type      = string
+  sensitive = true
+}
+
+variable "SKYSCANNER_API_KEY" {
+  type      = string
+  sensitive = true
+}

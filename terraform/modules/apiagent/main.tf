@@ -76,6 +76,26 @@ resource "google_cloud_run_v2_service" "service-apiagent" {
         name  = "SERPAPI_API_KEY"
         value = var.SERPAPI_API_KEY
       }
+      
+      env {
+        name  = "TAVILY_API_KEY"
+        value = var.TAVILY_API_KEY
+      }
+
+      env {
+        name  = "FIRECRAWL_API_KEY"
+        value = var.FIRECRAWL_API_KEY
+      }
+
+      env {
+        name  = "EXA_API_KEY"
+        value = var.EXA_API_KEY
+      }
+
+      env {
+        name  = "SKYSCANNER_API_KEY"
+        value = var.SKYSCANNER_API_KEY
+      }
 
       ports {
         container_port = 8000

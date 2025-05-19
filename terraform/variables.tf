@@ -166,3 +166,23 @@ variable "grafana_name" {
   description = "ID del repositorio de Grafana en Artifact Registry"
   type        = string  
 }
+
+variable "TAVILY_API_KEY" {
+  type      = string
+  sensitive = true
+}
+
+variable "FIRECRAWL_API_KEY" {
+  type      = string
+  sensitive = true
+}
+
+variable "EXA_API_KEY" {
+  type      = string
+  sensitive = true
+}
+
+variable "SKYSCANNER_API_KEY" {
+  type      = string
+  sensitive = true
+}

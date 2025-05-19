@@ -4,5 +4,5 @@ FROM grafana/grafana:latest
 RUN grafana-cli plugins install grafana-bigquery-datasource
 
 # Copiar dashboards y datasources
-COPY dashboards /etc/grafana/provisioning/dashboards
-COPY datasource.yaml /etc/grafana/provisioning/datasources/datasource.yaml
+COPY dashboards /etc/grafana/docker/dashboards.yaml
+COPY datasource.yaml /etc/grafana/docker/datasource.yaml
