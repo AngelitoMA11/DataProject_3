@@ -12,9 +12,9 @@ import requests
 # --- Configuration & Initialization (del código original del explorador) ---
 # Estas deberían cargarse una vez en tu entorno principal.
 # load_dotenv() # Asegúrate que esto se llame una vez en tu aplicación principal
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY") # Aunque no se usa directamente en el flujo principal
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
+FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY") # Aunque no se usa directamente en el flujo principal
 
 # --- System Prompt del Explorador (sin cambios) ---
 system_prompt_explorador = """
