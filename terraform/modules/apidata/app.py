@@ -43,6 +43,9 @@ def handle_coches():
         response = requests.post(FUNC_COCHES_URL, json=data)
         return jsonify(response.json()), response.status_code
 
+@app.route('/login', methods=['POST'])
+
+
 @app.route('/usuarios', methods=['POST'])
 def handle_usuarios():
     data = request.get_json()
@@ -74,10 +77,16 @@ def handle_viajes():
             return jsonify({"status": "success"}), 200
 
     elif request.method == 'GET':
-        query = f"SELECT * FROM `{table_id}`"
+        viaje_id = request.args.get("id")
+
+        if viaje_id:
+            query = f"SELECT * FROM `{table_id}` WHERE id = '{viaje_id}'"
+        else:
+            query = f"SELECT * FROM `{table_id}`"
+
         query_job = client.query(query)
         results = [dict(row) for row in query_job]
         return jsonify(results), 200
-
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)

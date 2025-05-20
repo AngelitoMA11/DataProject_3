@@ -32,7 +32,7 @@ resource "google_cloud_run_v2_service" "service-apidata" {
   name     = var.cloud_run_service_name
   location = var.region
   project  = var.project_id
-  #deletion_protection = false
+  deletion_protection = false
 
   template {
       containers {
