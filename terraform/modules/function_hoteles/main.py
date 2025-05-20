@@ -43,7 +43,7 @@ def limpiar_hoteles(data, payload):
 
     for hotel in propiedades:
         try:
-            imagenes = [img.get("original_image") for img in hotel.get("images", []) if "original_image" in img]
+            imagenes = [img.get("original_image") for img in hotel.get("images", []) if "original_image" in img][:1]
             hoteles.append({
                 "Nombre": hotel.get("name") or hotel.get("title", ""),
                 "Latitud": hotel.get("latitude", hotel.get("gps_coordinates", {}).get("latitude", 0.0)),

@@ -43,6 +43,7 @@ def handle_coches():
         response = requests.post(FUNC_COCHES_URL, json=data)
         return jsonify(response.json()), response.status_code
 
+
 @app.route('/registro', methods=['POST'])
 def handle_usuarios():
     data = request.get_json()
