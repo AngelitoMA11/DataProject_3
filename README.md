@@ -37,7 +37,7 @@ El proyecto consta de tres componentes principales:
 
 ## Arquitectura de Despliegue en GCP
 
-![Arquitectura](img\arquitectura.png)
+![Arquitectura](img/arquitectura.png)
 
 La aplicación se despliega en Google Cloud Platform (GCP) utilizando los siguientes servicios:
 
