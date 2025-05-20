@@ -1,7 +1,13 @@
 import streamlit as st
 import requests
 import uuid
+from config import AGENT_API_URL
 import os
+
+# Check authentication
+if 'authenticated' not in st.session_state or not st.session_state.authenticated:
+    st.warning("Por favor, inicia sesión para acceder al chat.")
+    st.stop()
 
 st.set_page_config(
     page_title="Chat Inteligente - Travel Planner",
@@ -11,8 +17,6 @@ st.set_page_config(
 
 st.title("🤖 Chat Inteligente")
 
-API_URL = os.environ.get("AGENT_API_URL")
-
 # Add agent selector in the sidebar
 with st.sidebar:
     st.title("Configuración")
@@ -21,17 +25,6 @@ with st.sidebar:
         ["Agente 1", "Agente 2"],
         index=0
     )
-    
-    st.title("Visualización")
-    if st.button("Ver flujo del agente"):
-        try:
-            response = requests.get(f"{API_URL}/graph")
-            if response.status_code == 200:
-                st.image(response.content, caption="Flujo de trabajo del agente", use_column_width=True)
-            else:
-                st.error("Error al cargar el grafo")
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -59,7 +52,8 @@ if prompt := st.chat_input("Escribe tu mensaje"):
                 agent_endpoint = "/chat2" if selected_agent == "Agente 2" else "/chat"
                 res = requests.post(f"{API_URL}{agent_endpoint}", json={
                     "message": prompt,
-                    "thread_id": st.session_state.thread_id
+                    "thread_id": st.session_state.thread_id,
+                    "username": st.session_state.username  # Add username to the request
                 })
                 res.raise_for_status()
                 result = res.json()
