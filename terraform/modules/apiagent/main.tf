@@ -32,7 +32,7 @@ resource "google_cloud_run_v2_service" "service-apiagent" {
   name     = var.cloud_run_service_name
   location = var.region
   project  = var.project_id
-  deletion_protection = false
+  #deletion_protection = false
   template {
       containers {
         image = "europe-west1-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest"

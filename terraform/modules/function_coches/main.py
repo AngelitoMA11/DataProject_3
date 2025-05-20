@@ -102,8 +102,26 @@ def insertar_bigquery(df):
             return
         client = bigquery.Client(project=PROJECT_ID)
         table_id = f"{PROJECT_ID}.{DATASET}.{TABLE}"
+
+        # === 1. Leer claves existentes ===
+        query = f"""
+            SELECT Ciudad, Compañía, Vehículo
+            FROM `{table_id}`
+        """
+        existentes = client.query(query).result()
+        claves_existentes = set((r.Ciudad, r.Compañía, r.Vehículo) for r in existentes)
+
+        # === 2. Filtrar duplicados en el dataframe ===
+        df = df[~df.apply(lambda row: (row['Ciudad'], row['Compañía'], row['Vehículo']) in claves_existentes, axis=1)]
+
+        if df.empty:
+            logging.info("⏩ No hay coches nuevos para insertar.")
+            return
+
+        # === 3. Insertar solo nuevos registros ===
         job = client.load_table_from_dataframe(df, table_id)
         job.result()
+        logging.info(f"✅ Insertados {len(df)} registros nuevos en BigQuery.")
     except Exception as e:
         logging.exception("Error al insertar en BigQuery")
 
