@@ -1,36 +1,52 @@
 # DataProject_3
 
-## Project Overview
+## Descripción General del Proyecto
 
-DataProject_3 is a multi-component application that integrates an AI agent with a FastAPI backend and a Streamlit frontend. The project consists of three main servers:
+Este proyecto es una aplicación de chat para la planificación de vacaciones que utiliza un sistema multiagente. La aplicación cuenta con un frontend en Streamlit para la interacción del usuario, que se comunica con una API backend impulsada por un agente de IA diseñado para ayudar a los usuarios a planificar sus viajes.
 
-1. **API Agent**: A FastAPI application that integrates an AI agent using Langraph.
-2. **API Data**: A FastAPI application that provides data to the agent through various data.
-3. **Streamlit Frontend**: A chat interface that connects to the AI agent via its API.
+El proyecto consta de tres componentes principales:
 
-## Setup Instructions
+1.  **Frontend Streamlit**: Una interfaz de chat donde los usuarios pueden interactuar con el agente de planificación de vacaciones.
+2.  **API del Agente**: Una aplicación FastAPI que integra el sistema multiagente (potencialmente utilizando Langraph) que procesa las consultas del usuario relacionadas con la planificación de vacaciones.
+3.  **API de Datos**: Una aplicación FastAPI que proporciona los datos necesarios (como hoteles, vuelos, coches, información de usuario y detalles de viaje) al agente de IA.
 
-1. **Clone the Repository**:
+## Instrucciones de despliegue en local
+
+1.  **Clonar el Repositorio**:
 
     ```bash
     git clone <repository-url>
     cd DataProject_3
     ```
 
-2. **Create .env file**
+2.  **Crear archivo .env**
 
     ```text
-    GEMINI_API_KEY=<your-api-key>
+    GOOGLE_API_KEY = <GOOGLE_API_KEY>
+    SERPAPI_KEY = <SERPAPI_KEY>
+    RAPIDAPI_KEY = <RAPIDAPI_KEY>
+    DATA_API_URL = <DATA_API_URL>
+    AGENT_API_URL = <AGENT_API_URL>
     ```
 
-3. **Docker compose up**:
+3.  **Docker compose up**:
 
     ```bash
     docker compose -f 'docker-compose.yml' up -d --build
     ```
 
-## Usage
+## Arquitectura de Despliegue en GCP
 
-- Access the API Agent at `http://localhost:8000`.
-- Access the API Data at `http://localhost:8001`.
-- Access the Streamlit chat interface at `http://localhost:8501`.
+![Arquitectura](img\arquitectura.png)
+
+La aplicación se despliega en Google Cloud Platform (GCP) utilizando los siguientes servicios:
+
+-   **Streamlit (Cloud Run)**: Aloja la interfaz de chat del frontend.
+-   **Artifact Registry**: Utilizado para almacenar imágenes de contenedor.
+-   **Agente de IA (Cloud Run)**: Aloja la API backend con el sistema multiagente.
+-   **API (Cloud Run)**: Aloja la API de datos.
+-   **Transformación (Cloud Functions)**: Incluye Cloud Functions para procesar datos relacionados con Vuelos, Hoteles y Coches.
+-   **Almacenamiento (BigQuery)**: Almacena datos en tablas de BigQuery para Hoteles, Vuelos, Coches, Usuarios y Viajes.
+-   **Grafana (Cloud Run)**: Desplegado para monitorización y visualización.
+
+El flujo de datos implica que el frontend Streamlit interactúa con la API del Agente de IA, que a su vez se comunica con la API de Datos y las Cloud Functions de Transformación. Las funciones de Transformación interactúan con el almacenamiento de BigQuery. El Agente de IA también interactúa directamente con la API de Datos. La API de Datos también interactúa con BigQuery para los datos de Viajes. Artifact Registry está conectado a Streamlit y al Agente de IA. Grafana se conecta a BigQuery para la monitorización.
