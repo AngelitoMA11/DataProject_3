@@ -1,138 +1,140 @@
+# hoteles.py
+
 import os
-from typing import Optional, List, Dict, Any # Añadir List, Dict, Any
+import requests
+import json
+import traceback
+from typing import Optional, List, Dict, Any
 
-from serpapi import GoogleSearch # Cambiado de serpapi directo a GoogleSearch
-from langchain.pydantic_v1 import BaseModel, Field # O from pydantic import BaseModel, Field
+import google.auth
+import google.auth.transport.requests
+from google.oauth2 import id_token
+
+from langchain.pydantic_v1 import BaseModel, Field # Sigue usando v1 por ahora si el resto de tu agente lo hace
 from langchain_core.tools import tool
-import json # Para imprimir
-import traceback # Para depurar
 
-# ... (tus clases HotelsInput y HotelsInputSchema sin cambios) ...
-class HotelsInput(BaseModel):
-    q: str = Field(description='Location of the hotel')
-    check_in_date: str = Field(description='Check-in date. The format is YYYY-MM-DD. e.g. 2024-06-22')
-    check_out_date: str = Field(description='Check-out date. The format is YYYY-MM-DD. e.g. 2024-06-28')
-    sort_by: Optional[str] = Field("3", description='Parameter is used for sorting the results. 3 is sort by pricing. 8 is sort by rating. and 13 is sort by most reviews.') # Dar un valor por defecto útil
-    adults: Optional[int] = Field(1, description='Number of adults. Default to 1.')
-    children: Optional[int] = Field(0, description='Number of children. Default to 0.')
-    rooms: Optional[int] = Field(1, description='Number of rooms. Default to 1.')
-    hotel_class: Optional[str] = Field(None, description='Parameter defines to include only certain hotel class in the results. for example- 2,3,4')
+CLOUD_FUNCTION_URL = "https://europe-west1-dataproject3-458310.cloudfunctions.net/hoteles"
 
-class HotelsInputSchema(BaseModel):
-    params: HotelsInput
-
-
-@tool(args_schema=HotelsInputSchema)
-def hotels_finder(params: HotelsInput) -> List[Dict[str, Any]]: # Cambiar el tipo de retorno
-    '''
-    Find hotels using the Google Hotels engine via SerpApi.
-    Returns a list of hotel details.
-    '''
-    print(f"[hotels_finder] Recibiendo parámetros para la tool: {params}")
-
-    # Asegúrate de que los parámetros se pasen correctamente a SerpApi
-    # El `params` que recibe la función es una instancia de HotelsInput
-    api_params = {
-        'api_key': os.environ.get('SERPAPI_API_KEY'),
-        'engine': 'google_hotels',
-        'hl': 'en',
-        'gl': 'us',
-        'q': params.q,
-        'check_in_date': params.check_in_date,
-        'check_out_date': params.check_out_date,
-        'currency': 'USD',
-        'adults': params.adults,
-        'num_rooms': params.rooms, # El parámetro de SerpApi podría ser 'num_rooms'
-        'sort_by': params.sort_by,
+def llamar_api_hoteles_cf(payload_data: Dict[str, Any], authenticated: bool = True) -> Optional[Dict[str, Any]]:
+    # ... (sin cambios en esta función) ...
+    headers = {
+        "Content-Type": "application/json"
     }
-    # Añadir children y hotel_class solo si tienen valor
-    if params.children is not None and params.children > 0: # SerpApi espera un string para children_ages
-        # Google Hotels en SerpApi a veces espera `children_ages`
-        # Por simplicidad, si solo es número de niños, podría no ser directamente soportado así.
-        # Consulta la documentación de SerpApi para Google Hotels y el parámetro `children`.
-        # Podría ser algo como `children_ages=10,5` (si tienes las edades) o un formato específico.
-        # Si solo tienes el número de niños, puede que tengas que omitirlo o encontrar el parámetro correcto.
-        # api_params['children_num'] = params.children # Ejemplo, verifica el nombre correcto
-        print(f"  Advertencia: El parámetro 'children' ({params.children}) podría necesitar un formato específico como 'children_ages' para SerpApi Google Hotels.")
-
-    if params.hotel_class:
-        api_params['hotel_class'] = params.hotel_class # Asegúrate que sea el nombre correcto, ej. 'htl_class'
-
-    print(f"[hotels_finder] Parámetros para SerpApi: {api_params}")
-
+    if authenticated:
+        try:
+            creds, project = google.auth.default(scopes=['openid', 'email', 'profile'])
+            auth_req = google.auth.transport.requests.Request()
+            identity_token = id_token.fetch_id_token(auth_req, CLOUD_FUNCTION_URL)
+            headers["Authorization"] = f"Bearer {identity_token}"
+        except Exception as e:
+            print(f"[llamar_api_hoteles_cf ERROR] Error obteniendo credenciales o token: {e}")
+            print("[llamar_api_hoteles_cf] Intentando llamar sin autenticación (puede fallar si es requerida).") # No imprimir token aquí
     try:
-        search = GoogleSearch(api_params)
-        results_dict = search.get_dict() # Obtener el diccionario completo
-
-        # print(f"[hotels_finder DEBUG] Respuesta completa de SerpApi:\n{json.dumps(results_dict, indent=2)}") # Descomentar para depurar
-
-        processed_hotels = []
-        
-        # La estructura de la respuesta de 'google_hotels' puede variar.
-        # Comúnmente, los hoteles están en 'properties' o a veces en 'hotels_results'.
-        # También puede haber una sección 'knowledge_graph' para un hotel específico si la búsqueda es muy precisa.
-
-        hotels_list = results_dict.get('properties') # Intenta con 'properties'
-        if not hotels_list and results_dict.get('hotels_results'): # Fallback a 'hotels_results'
-            hotels_list = results_dict.get('hotels_results')
-        
-        if hotels_list and isinstance(hotels_list, list):
-            print(f"[hotels_finder] Encontrados {len(hotels_list)} hoteles en la lista cruda.")
-            for hotel_data in hotels_list[:5]: # Tomar los primeros 5
-                if not isinstance(hotel_data, dict): continue
-
-                name = hotel_data.get('name', 'Nombre no disponible')
-                price_str = hotel_data.get('price') # Suele ser un string como "$123"
-                total_price_str = hotel_data.get('total_price') # A veces disponible
-                rate_breakdown = hotel_data.get('rate_per_night', {}).get('extracted_price') # Otra forma de obtener precio
-                
-                price_info = "Precio no disponible"
-                if price_str:
-                    price_info = price_str
-                elif rate_breakdown:
-                    price_info = f"${rate_breakdown} por noche (aprox)" # Asumir USD si no hay moneda
-
-                # Para el total, si existe
-                if total_price_str:
-                    price_info += f" (Total: {total_price_str})"
-
-
-                rating = hotel_data.get('overall_rating', 'N/A') # O 'rating'
-                reviews = hotel_data.get('reviews', 'N/A')
-                link = hotel_data.get('link') # Puede que no siempre esté
-
-                # La descripción o tipo
-                description = hotel_data.get('type', hotel_data.get('description', ''))
-                if isinstance(description, list): description = ', '.join(description)
-
-
-                processed_hotels.append({
-                    "name": name,
-                    "price_info": price_info,
-                    "rating": f"{rating} ({reviews} reviews)" if rating != 'N/A' else "N/A",
-                    "description": description[:150] + "..." if description and len(description) > 150 else description, # Acortar descripciones largas
-                    "link": link
-                })
-            
-            if processed_hotels:
-                print(f"[hotels_finder] Hoteles procesados: {len(processed_hotels)}")
-                return processed_hotels
-            else:
-                print("[hotels_finder] La lista de hoteles estaba vacía o no se pudieron procesar.")
-                return [{"error": "No se encontraron hoteles procesables en la respuesta de la API."}]
-
+        response = requests.post(CLOUD_FUNCTION_URL, json=payload_data, headers=headers, timeout=60)
+        if response.status_code == 200:
+            try:
+                return response.json()
+            except requests.exceptions.JSONDecodeError:
+                print(f"[llamar_api_hoteles_cf ERROR] Respuesta no es JSON. Texto: {response.text[:500]}")
+                return {"error_raw_text": f"La API devolvió un contenido no JSON (status {response.status_code}). Respuesta: {response.text[:200]}"}
         else:
-            # Si no hay 'properties' ni 'hotels_results', podría haber un error o una estructura diferente
-            error_message = results_dict.get('error')
-            if error_message:
-                print(f"[hotels_finder] Error de SerpApi: {error_message}")
-                return [{"error": f"Error de la API de hoteles: {error_message}"}]
-            
-            print(f"[hotels_finder] No se encontró la lista de hoteles ('properties' o 'hotels_results') en la respuesta. Respuesta: {json.dumps(results_dict, indent=2)[:500]}...")
-            return [{"error": "No se encontró la lista de hoteles en la respuesta de la API. La estructura podría haber cambiado."}]
-
+            # ... (manejo de errores sin cambios) ...
+            error_text = response.text
+            print(f"[llamar_api_hoteles_cf ERROR] Error en la API. Status: {response.status_code}. Respuesta: {error_text[:500]}")
+            try:
+                error_json = response.json()
+                if isinstance(error_json, dict) and "error" in error_json: return {"error_api": f"Error de la API (status {response.status_code}): {error_json['error']}"}
+                if isinstance(error_json, dict) and "message" in error_json: return {"error_api": f"Error de la API (status {response.status_code}): {error_json['message']}"}
+            except requests.exceptions.JSONDecodeError: pass
+            return {"error_api": f"Error de la API (status {response.status_code}). Respuesta: {error_text[:200]}"}
+    except requests.exceptions.RequestException as e:
+        print(f"[llamar_api_hoteles_cf ERROR] Excepción en la petición: {e}")
+        return {"error_request": f"Error de conexión llamando a la API: {str(e)}"}
     except Exception as e:
-        print(f"[hotels_finder ERROR] Excepción al buscar hoteles: {e}")
-        import traceback
+        print(f"[llamar_api_hoteles_cf ERROR] Excepción inesperada: {e}")
         traceback.print_exc()
-        return [{"error": f"Excepción en la herramienta de búsqueda de hoteles: {str(e)}"}]
+        return {"error_unexpected": f"Error inesperado al llamar a la API: {str(e)}"}
+
+
+class HotelsFinderCloudInput(BaseModel): # Este es tu esquema de argumentos ahora
+    ciudad: str = Field(description='Location (city) of the hotel. e.g., "París", "Nueva York"')
+    fecha_entrada: str = Field(description='Check-in date. The format is YYYY-MM-DD. e.g. "2025-05-21"')
+    fecha_vuelta: str = Field(description='Check-out date. The format is YYYY-MM-DD. e.g. "2025-05-25"')
+    adults: Optional[int] = Field(1, description='Number of adults. Default to 1.')
+    max_price: Optional[float] = Field(None, description='Maximum total price for the stay. e.g., 250.0')
+    valoracion: Optional[float] = Field(None, description='Minimum hotel rating (e.g., 4.0 for 4 stars and above).')
+
+# Ya no necesitas HotelsFinderCloudSchema
+# class HotelsFinderCloudSchema(BaseModel):
+#    params: HotelsFinderCloudInput
+
+@tool(args_schema=HotelsFinderCloudInput) # <--- USA EL ESQUEMA PLANO
+def hotels_finder(
+    ciudad: str,
+    fecha_entrada: str,
+    fecha_vuelta: str,
+    adults: Optional[int] = 1,
+    max_price: Optional[float] = None,
+    valoracion: Optional[float] = None
+) -> List[Dict[str, Any]]: # <--- ARGUMENTOS DESEMPAQUETADOS
+    '''
+    Finds hotels using a custom Google Cloud Function.
+    Provide the city, check-in date (YYYY-MM-DD), and check-out date (YYYY-MM-DD).
+    Optionally, specify adults, max_price, and valoracion.
+    Returns a list of hotel details: name, price, rating, and hotel's check-in/out dates.
+    '''
+    print(f"[hotels_finder] Args recibidos: ciudad='{ciudad}', fecha_entrada='{fecha_entrada}', fecha_vuelta='{fecha_vuelta}', adults={adults}, max_price={max_price}, valoracion={valoracion}")
+
+    payload_cf = {
+        "ciudad": ciudad,
+        "fecha_entrada": fecha_entrada,
+        "fecha_vuelta": fecha_vuelta,
+        "adults": adults
+    }
+    if adults is not None: payload_cf["adults"] = adults
+    if max_price is not None: payload_cf["max_price"] = max_price
+    if valoracion is not None: payload_cf["valoracion"] = valoracion
+    
+    api_response = llamar_api_hoteles_cf(payload_cf, authenticated=True) 
+
+    if api_response is None: return [{"error": "Error crítico al contactar el servicio de hoteles."}]
+    # ... (resto del manejo de errores y procesamiento de api_response sin cambios) ...
+    if "error_request" in api_response: return [{"error": api_response["error_request"]}]
+    if "error_api" in api_response: return [{"error": api_response["error_api"]}]
+    if "error_raw_text" in api_response: return [{"error": api_response["error_raw_text"]}]
+    if "error_unexpected" in api_response: return [{"error": api_response["error_unexpected"]}]
+    
+    processed_hotels = []
+    if isinstance(api_response, list):
+        hotels_list_from_cf = api_response
+        if not hotels_list_from_cf: return [{"message": "No se encontraron hoteles que coincidan."}]
+
+        for i, hotel_data in enumerate(hotels_list_from_cf):
+            if not isinstance(hotel_data, dict):
+                continue
+            name = hotel_data.get('Nombre') 
+            price_total_value = hotel_data.get('PrecioTotal')
+            rating_value = hotel_data.get('Puntuación')
+            fecha_entrada_api = hotel_data.get('FechaEntrada')
+            fecha_salida_api = hotel_data.get('FechaSalida')
+
+            if name and price_total_value is not None and rating_value is not None:
+                price_info = f"Total: {price_total_value}"
+                rating_str = "N/A"
+                if rating_value is not None:
+                    try: rating_str = f"{float(rating_value):.1f}"
+                    except (ValueError, TypeError): rating_str = str(rating_value)
+                
+                hotel_output = { "name": name, "price_info": price_info, "rating": rating_str }
+                if fecha_entrada_api: hotel_output["hotel_check_in_date"] = fecha_entrada_api
+                if fecha_salida_api: hotel_output["hotel_check_out_date"] = fecha_salida_api
+                processed_hotels.append(hotel_output)
+        
+        if processed_hotels: return processed_hotels
+        else: return [{"message": "No se encontraron hoteles con información completa que coincidan con los criterios."}]
+    elif isinstance(api_response, dict): 
+        if "error" in api_response: return [{"error": f"API error: {api_response['error']}"}]
+        if "message" in api_response: return [{"message": api_response['message']}]
+        return [{"error": "Respuesta dict inesperada de la API."}]
+    else: 
+        return [{"error": "Respuesta API inesperada/mal formateada."}]

@@ -63,19 +63,20 @@ TOOLS_SYSTEM_PROMPT = f"""You are a smart travel agency. Use the tools to look u
             - Do NOT repeat a summary like "Destino Elegido: [Ciudad], Intereses: [Intereses]" back to the user, as the tool has already handled the confirmation conversationally. Simply use the confirmed city and interests from the main agent state for the next planning step.
         - Only use other tools (flights_finder, etc.) AFTER 'destination_explorer_tool' has confirmed a city (i.e., 'destination' is set in the main agent state and 'explorer_is_finished' is True).
 
+
     2. 'flights_finder':
         - Use AFTER a destination city is known (i.e., 'destination' is set in the main agent state).
-        - Requires: 'params': {{"departure_airport": "XYZ", "arrival_airport": "ABC", "outbound_date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD", "adults": N}}
+        - Requires: {{"ciudad_origen": "XYZ", "ciudad_destino": "ABC", "fecha_salida": "YYYY-MM-DD", "fecha_vuelta": "YYYY-MM-DD", "adults": N}}
         - This tool will update flight_info_gathered and potentially destination/dates in the main state.
 
     3. 'hotels_finder':
         - Use AFTER a destination city is known.
-        - Requires: 'params': {{"destination": "City, Country", "checkin_date": "YYYY-MM-DD", "checkout_date": "YYYY-MM-DD", "adults": N}}
-        - This tool will update hotel_info_gathered and potentially destination/dates in the main state.
+        - Requires: {{"ciudad": "City", "fecha_entrada": "YYYY-MM-DD", "fecha_vuelta": "YYYY-MM-DD", "adults": N}}
+        - This tool will update hotel_info_gathered and potentially ciudad/dates in the main state.
 
     4. 'comprehensive_itinerary_generator_tool':
-        - Use this to generate a travel itinerary ONLY AFTER destination, departure_date, arrival_date, and interests are known and confirmed in the main state.
-        - Requires: {{"destination": "City, Country", "departure_date": "DD de mes de YYYY", "arrival_date": "DD de mes de YYYY", "intereses": "e.g., museums, local food"}}
+        - Use this to generate a travel itinerary ONLY AFTER ciudad, departure_date, arrival_date, and interests are known and confirmed in the main state.
+        - Requires: {{"ciudad": "City, Country", "departure_date": "DD de mes de YYYY", "arrival_date": "DD de mes de YYYY", "intereses": "e.g., museums, local food"}}
         - This tool performs its own web research if needed.
 
     General Flow:
@@ -362,100 +363,3 @@ class Agent:
 
 
 travel_agent = Agent(tools=TOOLS)
-
-# --- Execution ---
-# if __name__ == "__main__":
-#     print("--- Iniciando Agente Orquestador de Viajes Modificado ---")
-    
-#     # Inicializar el explorador de destinos una vez
-#     initialize_destination_explorer()
-    
-#     travel_agent = Agent(tools=TOOLS)
-    
-#     thread_id = f"viaje-realtool-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-#     config = {"configurable": {"thread_id": thread_id}} # Para MemorySaver
-
-
-#     # Estado inicial para la primera ejecución del grafo si no hay memoria
-#     initial_graph_state = {
-#         "messages": [], # Se llenará con el primer HumanMessage
-#         "destination": None,
-#         "departure_date": None,
-#         "arrival_date": None,
-#         "intereses": None,
-#         "flight_info_gathered": False,
-#         "hotel_info_gathered": False,
-#         "itinerary_generated": False,
-#         "last_flight_info": None,
-#         "last_hotel_info": None,
-#         "explorer_conversation_history": None, # Inicialmente no hay historial
-#         "explorer_is_finished": True # Se considera terminado hasta que se use explícitamente
-#     }
-
-
-#     while True:
-#         user_input = input("Usuario: ")
-#         if user_input.lower() in ["salir", "exit"]:
-#             print("Agente: ¡Hasta luego!")
-#             break
-
-#         # Recuperar el estado actual de la memoria para esta conversación
-#         current_thread_state = travel_agent.graph.get_state(config)
-        
-#         # Si es la primera vez o no hay estado, usar el estado inicial
-#         # Pero 'messages' debe construirse para el input del grafo
-#         if not current_thread_state or not current_thread_state.values.get("messages"):
-#              # Si no hay historial de mensajes, empezamos con el del usuario.
-#              # Los otros campos del estado vendrán de initial_graph_state si MemorySaver no los tiene.
-#              # LangGraph y MemorySaver deberían manejar la fusión del nuevo input con el estado almacenado.
-#              messages_for_graph = [HumanMessage(content=user_input)]
-#              input_for_graph = { "messages": messages_for_graph }
-#              # Los otros campos se tomarán de la memoria o defaults si no existen
-#         else:
-#             # Hay estado, añadir el nuevo mensaje del usuario
-#             # MemorySaver espera que el operador 'add' en 'messages' funcione.
-#             input_for_graph = {"messages": [HumanMessage(content=user_input)]}
-
-
-#         final_graph_output_state_values = None # Para el estado final después del stream
-
-#         print(f"--- Enviando al grafo (Thread ID: {config['configurable']['thread_id']}) ---")
-#         try:
-#             for event_chunk in travel_agent.graph.stream(input_for_graph, config=config, stream_mode="values"):
-#                 final_graph_output_state_values = event_chunk # El último chunk es el estado final
-#         except Exception as e:
-#             print(f"!!!! GRAPH STREAM ERROR: {type(e).__name__} - {e} !!!!")
-#             traceback.print_exc()
-#             final_graph_output_state_values = {"messages": [AIMessage(content=f"Se produjo un error en el stream del grafo: {e}")]}
-
-
-#         print(f"--- Stream finalizado ---")
-
-#         ai_response_to_user = None
-#         if final_graph_output_state_values and final_graph_output_state_values.get("messages"):
-#             output_messages = final_graph_output_state_values["messages"]
-            
-#             for message in reversed(output_messages):
-#                 if isinstance(message, AIMessage) and message.content and message.content.strip():
-#                     ai_response_to_user = message.content
-#                     break
-            
-#             if not ai_response_to_user and output_messages and isinstance(output_messages[-1], ToolMessage):
-#                 tool_message = output_messages[-1]
-#                 # Si el último mensaje es de herramienta (ej. explorador) y AI anterior estaba vacío
-#                 if len(output_messages) >= 2 and isinstance(output_messages[-2], AIMessage) and \
-#                    (not output_messages[-2].content or not output_messages[-2].content.strip()):
-#                     print(f"  [Debug Info] Último AIMessage vacío. Usando contenido del ToolMessage (Nombre: {tool_message.name}): {str(tool_message.content)[:200]}...")
-#                     ai_response_to_user = str(tool_message.content)
-        
-#         if ai_response_to_user:
-#             print(f"Agente: {ai_response_to_user}")
-#         else:
-#             print("Agente: No se pudo extraer una respuesta clara de la IA del estado final del grafo.")
-#             if final_graph_output_state_values and final_graph_output_state_values.get("messages"):
-#                  last_message_obj = final_graph_output_state_values["messages"][-1]
-#                  print(f"  [Debug Info] Último mensaje en estado: {type(last_message_obj)} -> {getattr(last_message_obj, 'content', str(last_message_obj))[:300]}")
-#             elif final_graph_output_state_values:
-#                  print(f"  [Debug Info] Estado final del grafo (sin mensajes): {final_graph_output_state_values}")
-#             else:
-#                  print(f"  [Debug Info] No hubo estado final del grafo.")

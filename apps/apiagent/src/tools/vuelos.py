@@ -1,155 +1,130 @@
-import os
-from typing import Optional, List, Dict, Any
+# vuelos.py
 
-# Usaremos langchain.pydantic_v1 consistentemente como en tu ejemplo de hotels_finder
-from langchain.pydantic_v1 import BaseModel, Field
-from serpapi import GoogleSearch
-from langchain_core.tools import tool
+import os
+import requests
 import json
 import traceback
+from typing import Optional, List, Dict, Any, Union # Añadido Union
 
-# --- Definición de la herramienta de Vuelos ---
+# --- Autenticación con Google ---
+import google.auth
+import google.auth.transport.requests
+from google.oauth2 import id_token
 
-class FlightsInput(BaseModel):
-    """Inputs for finding flight information.""" # Descripción general de la clase
-    departure_airport: str = Field(description='Mandatory. The IATA code of the departure airport. Example: "VLC" for Valencia.')
-    arrival_airport: str = Field(description='Mandatory. The IATA code of the arrival airport. Example: "FCO" for Rome Fiumicino.')
-    outbound_date: str = Field(description='Mandatory. The departure date in YYYY-MM-DD format. Example: "2025-05-15".')
-    return_date: Optional[str] = Field(None, description='Optional. The return date in YYYY-MM-DD format for round trips. Example: "2025-05-20". If not provided for a round trip query, ask the user.')
-    adults: int = Field(default=1, description='Number of adult passengers. Defaults to 1 if not specified by the user. Example: 1.')
-    children: Optional[int] = Field(default=0, description='Optional. Number of children (typically age 2-11). Defaults to 0.')
-    infants_in_seat: Optional[int] = Field(default=0, description='Optional. Number of infants occupying a seat. Defaults to 0.')
-    infants_on_lap: Optional[int] = Field(default=0, description='Optional. Number of infants on an adult\'s lap (under age 2). Defaults to 0.')
+# --- Langchain ---
+from langchain.pydantic_v1 import BaseModel, Field
+from langchain_core.tools import tool
 
-class FlightsInputSchema(BaseModel):
+# --- Definición de la Cloud Function de Vuelos y su llamada ---
+FLIGHTS_CF_URL = "https://europe-west1-dataproject3-458310.cloudfunctions.net/vuelos"
+
+def llamar_api_vuelos_cf(payload_data: Dict[str, Any], authenticated: bool = True) -> Optional[Union[List[Dict[str, Any]], Dict[str, Any]]]: # Tipo de retorno ajustado
     """
-    Wrapper for the flight search parameters.
-    The 'params' field must contain all necessary details for the flight search.
+    Llama a la Cloud Function 'vuelos'.
+    Devuelve el JSON parseado de la respuesta o un dict de error.
     """
-    params: FlightsInput = Field(description="Must be a valid JSON object containing all flight search parameters as defined in FlightsInput.")
-
-
-@tool(args_schema=FlightsInputSchema)
-def flights_finder(params: FlightsInput) -> List[Dict[str, Any]]:
-    '''Tool to find flight information.
-    Use this tool when a user asks for flight details.
-    Ensure all mandatory parameters (departure_airport, arrival_airport, outbound_date) are extracted from the user query.
-    If any mandatory parameter is missing, you MUST ask the user for it before calling this tool.
-    The current year is 2025. Dates must be in YYYY-MM-DD format.
-    Example of a valid call: {"params": {"departure_airport": "VLC", "arrival_airport": "FCO", "outbound_date": "2025-05-15", "return_date": "2025-05-20", "adults": 1}}
-    '''
-    print(f"[flights_finder] Recibiendo la instancia de FlightsInput: {params}")
-
-    # Pydantic ya ha realizado la validación de tipos y campos obligatorios
-    # si la instancia `params` se ha creado correctamente.
-    # El error 'params value is not a valid dict' significa que 'params' en sí mismo no era un dict.
-    # La instancia `params: FlightsInput` aquí ya es el objeto validado.
-
-    api_params = {
-        'api_key': os.environ.get('SERPAPI_API_KEY'),
-        'engine': 'google_flights',
-        'hl': 'en',
-        'gl': 'us',
-        'currency': 'USD',
-        'departure_id': params.departure_airport,
-        'arrival_id': params.arrival_airport,
-        'outbound_date': params.outbound_date,
-        'adults': params.adults, # Pydantic se encarga del default
-    }
-
-    if params.return_date:
-        api_params['return_date'] = params.return_date
-    if params.children is not None and params.children > 0:
-        api_params['children'] = params.children
-    if params.infants_in_seat is not None and params.infants_in_seat > 0:
-        api_params['infants_in_seat'] = params.infants_in_seat
-    if params.infants_on_lap is not None and params.infants_on_lap > 0:
-        api_params['infants_on_lap'] = params.infants_on_lap
-
-    print(f"[flights_finder] Parámetros para SerpApi: {api_params}")
+    headers = {"Content-Type": "application/json"}
+    if authenticated:
+        try:
+            creds, project = google.auth.default(scopes=['openid', 'email', 'profile'])
+            auth_req = google.auth.transport.requests.Request()
+            identity_token = id_token.fetch_id_token(auth_req, FLIGHTS_CF_URL)
+            headers["Authorization"] = f"Bearer {identity_token}"
+        except Exception as e:
+            print(f"[llamar_api_vuelos_cf ERROR] Error obteniendo credenciales o token: {e}")
+            print("[llamar_api_vuelos_cf] Intentando llamar sin autenticación.")
 
     try:
-        search = GoogleSearch(api_params)
-        results_dict = search.get_dict()
-        # print(f"[flights_finder DEBUG] Respuesta completa de SerpApi:\n{json.dumps(results_dict, indent=2)}")
-
-        processed_flights = []
-        flights_list = results_dict.get('best_flights') or \
-                       results_dict.get('other_flights') or \
-                       results_dict.get('flights')
-
-        if flights_list and isinstance(flights_list, list):
-            print(f"[flights_finder] Encontrados {len(flights_list)} vuelos en la lista cruda.")
-            for flight_data in flights_list[:5]:
-                if not isinstance(flight_data, dict): continue
-
-                price = flight_data.get('price', 'N/A')
-                price_str = f"${price}" if isinstance(price, int) else str(price)
-                flight_type = flight_data.get('type', 'N/A')
-                total_duration = flight_data.get('total_duration', flight_data.get('duration', 'N/A'))
-                
-                main_leg_info = flight_data.get('flights')
-                departure_airport_info = {}
-                arrival_airport_info = {}
-                airline = flight_data.get('airline', 'N/A')
-                stops_str = "N/A"
-
-                if isinstance(main_leg_info, list) and main_leg_info:
-                    first_leg = main_leg_info[0]
-                    departure_airport_info = first_leg.get('departure_airport', {})
-                    arrival_airport_info = main_leg_info[-1].get('arrival_airport', {})
-                    if not airline or airline == 'N/A': airline = first_leg.get('airline', 'N/A')
-                    num_stops = len(main_leg_info) - 1
-                    stops_str = "Directo" if num_stops == 0 else f"{num_stops} parada(s)"
-                else:
-                    departure_airport_info = flight_data.get('departure_airport', {})
-                    arrival_airport_info = flight_data.get('arrival_airport', {})
-                    num_stops = flight_data.get('stops')
-                    if isinstance(num_stops, int): stops_str = "Directo" if num_stops == 0 else f"{num_stops} parada(s)"
-                    elif flight_data.get('layovers'): stops_str = f"{len(flight_data['layovers'])} parada(s)"
-
-                booking_link = flight_data.get('booking_link') or \
-                               (flight_data.get('booking_options') and \
-                                isinstance(flight_data['booking_options'], list) and \
-                                flight_data['booking_options'] and \
-                                isinstance(flight_data['booking_options'][0], dict) and \
-                                flight_data['booking_options'][0].get('link')) or \
-                               flight_data.get('link')
-
-                processed_flights.append({
-                    "type": flight_type, "price": price_str, "total_duration": total_duration,
-                    "departure_airport": f"{departure_airport_info.get('name', 'N/A')} ({departure_airport_info.get('id', 'N/A')})",
-                    "departure_time": departure_airport_info.get('time', 'N/A'),
-                    "arrival_airport": f"{arrival_airport_info.get('name', 'N/A')} ({arrival_airport_info.get('id', 'N/A')})",
-                    "arrival_time": arrival_airport_info.get('time', 'N/A'),
-                    "airline": airline, "stops_details": stops_str,
-                    "travel_class": flight_data.get('travel_class', 'N/A'),
-                    "booking_link": booking_link if booking_link else "No disponible"
-                })
-            
-            if processed_flights:
-                print(f"[flights_finder] Vuelos procesados: {len(processed_flights)}")
-                return processed_flights
-            
-            search_info = results_dict.get('search_information', {})
-            if search_info.get('flights_results_state') == "Fully empty":
-                return [{"message": "No se encontraron vuelos para los criterios especificados."}]
-            return [{"error": "No se encontraron vuelos procesables en la respuesta de la API, aunque la lista de vuelos podría no estar vacía."}]
+        response = requests.post(FLIGHTS_CF_URL, json=payload_data, headers=headers, timeout=120)
+        if response.status_code == 200:
+            try:
+                response_json = response.json()
+                # Imprimir aquí la respuesta cruda para depuración es MUY útil
+                print(f"[llamar_api_vuelos_cf DEBUG] Respuesta JSON CRUDA de la CF (Vuelos):\n{json.dumps(response_json, indent=2, ensure_ascii=False)}")
+                return response_json # Devuelve el JSON parseado directamente
+            except requests.exceptions.JSONDecodeError:
+                print(f"[llamar_api_vuelos_cf ERROR] Respuesta no es JSON. Texto: {response.text[:500]}")
+                return {"error_raw_text": f"API de vuelos devolvió contenido no JSON (status {response.status_code}). Resp: {response.text[:200]}"}
         else:
-            error_message = results_dict.get('error')
-            if error_message:
-                print(f"[flights_finder] Error de SerpApi: {error_message}")
-                return [{"error": f"Error de la API de vuelos: {error_message}"}]
-            
-            search_info = results_dict.get('search_information', {})
-            if search_info.get('flights_results_state') == "Fully empty":
-                 print(f"[flights_finder] No se encontraron vuelos según SerpApi. Estado: {search_info.get('flights_results_state')}")
-                 return [{"message": "No se encontraron vuelos para los criterios especificados."}]
-
-            print(f"[flights_finder] No se encontró una lista de vuelos válida en la respuesta de SerpApi. Respuesta (primeros 500 chars): {json.dumps(results_dict, indent=2)[:500]}...")
-            return [{"error": "No se encontró la lista de vuelos en la respuesta de la API. La estructura podría haber cambiado o no hay vuelos."}]
-
+            error_text = response.text
+            print(f"[llamar_api_vuelos_cf ERROR] Error en API vuelos. Status: {response.status_code}. Resp: {error_text[:500]}")
+            try:
+                error_json = response.json()
+                if isinstance(error_json, dict) and "error" in error_json: return {"error_api_details": error_json} # Devuelve el error de la API
+                if isinstance(error_json, dict) and "message" in error_json: return {"error_api_message": error_json["message"]}
+            except requests.exceptions.JSONDecodeError: pass
+            return {"error_api_status": f"Error API vuelos (status {response.status_code}). Resp: {error_text[:200]}"}
+    except requests.exceptions.Timeout:
+        print(f"[llamar_api_vuelos_cf ERROR] Timeout llamando a {FLIGHTS_CF_URL}.")
+        return {"error_request_timeout": f"Timeout llamando a API de vuelos."}
+    except requests.exceptions.RequestException as e:
+        print(f"[llamar_api_vuelos_cf ERROR] Excepción en la petición: {e}")
+        return {"error_request_exception": f"Error de conexión llamando a API de vuelos: {str(e)}"}
     except Exception as e:
-        print(f"[flights_finder ERROR] Excepción al buscar vuelos: {e}")
+        print(f"[llamar_api_vuelos_cf ERROR] Excepción inesperada: {e}")
         traceback.print_exc()
-        return [{"error": f"Excepción en la herramienta de búsqueda de vuelos: {str(e)}"}]
+        return {"error_unexpected_cf_call": f"Error inesperado al llamar a API de vuelos: {str(e)}"}
+
+# --- Definición de Inputs para la Herramienta Langchain ---
+class FlightsCloudInput(BaseModel):
+    ciudad_origen: str = Field(description='Mandatory. The IATA code of the departure city/airport. Example: "MAD" for Madrid.')
+    ciudad_destino: str = Field(description='Mandatory. The IATA code of the arrival city/airport. Example: "LHR" for London Heathrow.')
+    fecha_salida: str = Field(description='Mandatory. The departure date in YYYY-MM-DD format. Example: "2025-12-01".')
+    fecha_vuelta: str = Field(description='Mandatory. The return date in YYYY-MM-DD format. Required if tipo_de_viaje is 1 (round trip). Example: "2025-12-08".')
+    adults: int = Field(default=1, description='Number of adult passengers. Defaults to 1. Example: 1.')
+    cabin_class: Optional[str] = Field("ECONOMY", description='Optional. Cabin class. Examples: "ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST". Defaults to "ECONOMY".')
+    tipo_de_viaje: int = Field(description='Mandatory. Type of trip: 0 for one-way, 1 for round trip. Example: 1.')
+
+@tool(args_schema=FlightsCloudInput)
+def flights_finder(
+    ciudad_origen: str,
+    ciudad_destino: str,
+    fecha_salida: str,
+    tipo_de_viaje: int,
+    fecha_vuelta: Optional[str] = None,
+    adults: Optional[int] = 1,
+    cabin_class: Optional[str] = "ECONOMY"
+) -> List[Dict[str, Any]]: # Mantenemos el tipo de retorno como List[Dict] para el agente
+    '''Tool to find flight information using a custom Cloud Function.
+    Returns the raw JSON data from the flight API.
+    Provide departure city, arrival city, departure date, and trip type (0 for one-way, 1 for round trip).
+    For round trips (tipo_de_viaje=1), a return date (fecha_vuelta) is also mandatory.
+    Dates must be in YYYY-MM-DD format.
+    '''
+    print(f"[flights_finder CF RAW] Args: origen='{ciudad_origen}', destino='{ciudad_destino}', salida='{fecha_salida}', tipo_viaje={tipo_de_viaje}, vuelta='{fecha_vuelta}', adultos={adults}, cabina='{cabin_class}'")
+
+    if tipo_de_viaje == 1 and not fecha_vuelta:
+        # Devolver una lista con un diccionario de error, como esperan las herramientas
+        return [{"error_validation": "Para un viaje de ida y vuelta (tipo_de_viaje=1), se requiere 'fecha_vuelta'."}]
+
+    payload_cf = {
+        "ciudad_origen": ciudad_origen,
+        "ciudad_destino": ciudad_destino,
+        "fecha_salida": fecha_salida,
+        "adults": adults,
+        "cabin_class": cabin_class,
+        "tipo_de_viaje": tipo_de_viaje
+    }
+    if fecha_vuelta:
+        payload_cf["fecha_vuelta"] = fecha_vuelta
+    
+    api_response_raw = llamar_api_vuelos_cf(payload_cf, authenticated=True)
+
+    # Langchain tools suelen esperar una List[Dict[str, Any]] como resultado.
+    # Si api_response_raw es un diccionario (ej. un error), lo envolvemos en una lista.
+    # Si api_response_raw ya es una lista (de vuelos), la usamos directamente.
+    # Si es None u otro tipo, devolvemos un error genérico.
+
+    if isinstance(api_response_raw, list):
+        if not api_response_raw: # Lista vacía de la API (sin vuelos encontrados)
+            return [{"message": "No se encontraron vuelos para los criterios especificados."}]
+        return api_response_raw # Devuelve la lista de vuelos cruda
+    elif isinstance(api_response_raw, dict):
+        # Si es un diccionario, probablemente sea un error o un mensaje estructurado de la CF.
+        # Lo envolvemos en una lista para cumplir con el tipo de retorno esperado.
+        return [api_response_raw] 
+    elif api_response_raw is None: # Error crítico en la llamada a la CF
+        return [{"error_critical_cf_call": "La llamada a la API de vuelos no devolvió respuesta."}]
+    else:
+        # Tipo inesperado
+        return [{"error_unexpected_response_type": f"Respuesta inesperada de la API de vuelos. Tipo: {type(api_response_raw)}"}]
