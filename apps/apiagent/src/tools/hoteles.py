@@ -117,6 +117,8 @@ def hotels_finder(
             rating_value = hotel_data.get('Puntuación')
             fecha_entrada_api = hotel_data.get('FechaEntrada')
             fecha_salida_api = hotel_data.get('FechaSalida')
+            hotel_url = hotel_data.get('URL')
+            hotel_images = hotel_data.get('Imagenes')
 
             if name and price_total_value is not None and rating_value is not None:
                 price_info = f"Total: {price_total_value}"
@@ -128,6 +130,10 @@ def hotels_finder(
                 hotel_output = { "name": name, "price_info": price_info, "rating": rating_str }
                 if fecha_entrada_api: hotel_output["hotel_check_in_date"] = fecha_entrada_api
                 if fecha_salida_api: hotel_output["hotel_check_out_date"] = fecha_salida_api
+                if hotel_url: 
+                    hotel_output["url"] = hotel_url
+                if hotel_images and isinstance(hotel_images, list): # Asegurarse que 'Imagenes' sea una lista
+                    hotel_output["images"] = hotel_images
                 processed_hotels.append(hotel_output)
         
         if processed_hotels: return processed_hotels
