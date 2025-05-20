@@ -43,6 +43,7 @@ def limpiar_hoteles(data, payload):
 
     for hotel in propiedades:
         try:
+            imagenes = [img.get("original_image") for img in hotel.get("images", []) if "original_image" in img]
             hoteles.append({
                 "Nombre": hotel.get("name") or hotel.get("title", ""),
                 "Latitud": hotel.get("latitude", hotel.get("gps_coordinates", {}).get("latitude", 0.0)),
@@ -51,7 +52,9 @@ def limpiar_hoteles(data, payload):
                 "Puntuación": hotel.get("overall_rating", hotel.get("rating", 0.0)),
                 "Ciudad": payload["ciudad"],
                 "FechaEntrada": payload["fecha_entrada"],
-                "FechaSalida": payload["fecha_vuelta"]
+                "FechaSalida": payload["fecha_vuelta"],
+                "URL": hotel.get("link", ""),
+                "Imagenes": imagenes
             })
         except Exception as e:
             logging.error(f"[SerpAPI] Error limpiando hotel: {e}", exc_info=True)
@@ -61,14 +64,33 @@ def limpiar_hoteles(data, payload):
 def insertar_en_bigquery(hoteles):
     client = bigquery.Client(project=PROJECT_ID)
     tabla_ref = f"{PROJECT_ID}.{DATASET}.{TABLE}"
-    errors = client.insert_rows_json(tabla_ref, hoteles)
+
+    # 1. Leer claves existentes en la tabla
+    query = f"""
+        SELECT Nombre, FechaEntrada, FechaSalida
+        FROM `{tabla_ref}`
+    """
+    existentes = client.query(query).result()
+    claves_existentes = set((r.Nombre, str(r.FechaEntrada), str(r.FechaSalida)) for r in existentes)
+
+    # 2. Filtrar hoteles nuevos
+    nuevos_hoteles = [
+        h for h in hoteles
+        if (h["Nombre"], h["FechaEntrada"], h["FechaSalida"]) not in claves_existentes
+    ]
+
+    if not nuevos_hoteles:
+        logging.info("⏩ No hay hoteles nuevos para insertar.")
+        return True
+
+    # 3. Insertar solo los nuevos
+    errors = client.insert_rows_json(tabla_ref, nuevos_hoteles)
     if not errors:
-        logging.info(f"✅ Insertados {len(hoteles)} hoteles en BigQuery.")
+        logging.info(f"✅ Insertados {len(nuevos_hoteles)} hoteles en BigQuery.")
         return True
     else:
         logging.error(f"❌ Errores al insertar en BigQuery: {errors}")
         return False
-
 # === CLOUD FUNCTION ENTRY POINT ===
 def buscar_hoteles(request):
     try:
