@@ -1,0 +1,8 @@
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED", "description": "Identificador único del usuario"},
+  {"name": "usuario", "type": "STRING", "mode": "REQUIRED", "description": "Nombre de usuario"},
+  {"name": "nombre", "type": "STRING", "mode": "NULLABLE", "description": "Nombre del usuario"},
+  {"name": "apellido", "type": "STRING", "mode": "NULLABLE", "description": "Apellido del usuario"},
+  {"name": "correo", "type": "STRING", "mode": "REQUIRED", "description": "Correo electrónico"},
+  {"name": "PWD", "type": "STRING", "mode": "REQUIRED", "description": "Contraseña encriptada con MD5"}
+]

@@ -52,6 +52,29 @@ resource "google_cloud_run_v2_service" "service-apidata" {
         name  = "FUNC_COCHES_URL"
         value = ""
       }
+      env {
+        name  = "PROJECT_ID"
+        value = var.project_id
+      }
+
+      env {
+        name  = "DATASET"
+        value = var.dataset
+      }
+
+      env {
+        name  = "TABLE_USUARIOS"
+        value = var.table_usuarios
+      }
+
+      
+      env {
+        name  = "TABLE_VIAJES"
+        value = var.table_viajes
+      }
+
+
+      
 
       ports {
         container_port = 8080

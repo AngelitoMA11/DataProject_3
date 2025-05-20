@@ -136,9 +136,28 @@ def insertar_en_bigquery(vuelos, PROJECT_ID, DATASET, TABLE):
     client = bigquery.Client(project=PROJECT_ID)
     tabla_ref = f"{PROJECT_ID}.{DATASET}.{TABLE}"
 
-    errors = client.insert_rows_json(tabla_ref, vuelos)
-    if errors == []:
-        logging.info(f"✅ Insertados {len(vuelos)} registros en BigQuery.")
+    # 1. Consultar claves existentes (usamos Aerolinea + FechaSalida + FechaLlegada)
+    query = f"""
+        SELECT Aerolinea, FechaSalida, FechaLlegada
+        FROM `{tabla_ref}`
+    """
+    existentes = client.query(query).result()
+    claves_existentes = set((r.Aerolinea, str(r.FechaSalida), str(r.FechaLlegada)) for r in existentes)
+
+    # 2. Filtrar vuelos nuevos
+    nuevos_vuelos = [
+        v for v in vuelos
+        if (v["Aerolinea"], v["FechaSalida"], v["FechaLlegada"]) not in claves_existentes
+    ]
+
+    if not nuevos_vuelos:
+        logging.info("⏩ No hay vuelos nuevos para insertar.")
+        return True
+
+    # 3. Insertar solo los nuevos
+    errors = client.insert_rows_json(tabla_ref, nuevos_vuelos)
+    if not errors:
+        logging.info(f"✅ Insertados {len(nuevos_vuelos)} registros nuevos en BigQuery.")
         return True
     else:
         logging.error(f"❌ Errores al insertar en BigQuery: {errors}")

@@ -14,7 +14,9 @@ module "bigquery" {
   tables = [
     { name = var.table_vuelos, schema = "schemas/vuelos.json" },
     { name = var.table_hoteles, schema = "schemas/hoteles.json" },
-    { name = var.table_coches, schema = "schemas/coches.json" }
+    { name = var.table_coches, schema = "schemas/coches.json" },
+    { name = var.table_usuarios, schema = "schemas/usuarios.json" },
+    { name = var.table_viajes, schema = "schemas/viajes.json" }
   ]
 }
 
@@ -78,6 +80,9 @@ module "function_coches" {
   cloud_run_service_name = var.cloud_run_service_api_data
   repository_name        = var.repository_name_api_data
   image_name             = var.image_name_api_data
+  dataset                = var.bq_dataset
+  table_usuarios         = var.table_usuarios
+  table_viajes           = var.table_viajes
 }
 
 module "apiagent" {

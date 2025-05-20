@@ -38,7 +38,17 @@ variable "table_vuelos" {
   type        = string
 }
 
+variable "table_viajes" {
+  description = "Nombre de la tabla de vuelos."
+  type        = string
+}
+
 variable "table_hoteles" {
+  description = "Nombre de la tabla de hoteles."
+  type        = string
+}
+
+variable "table_usuarios" {
   description = "Nombre de la tabla de hoteles."
   type        = string
 }

@@ -1,0 +1,6 @@
+[
+  {"name": "thread_id", "type": "STRING", "mode": "REQUIRED", "description": "Identificador único del hilo de conversación"},
+  {"name": "user", "type": "STRING", "mode": "REQUIRED", "description":  "Identificador o nombre del usuario"},
+  {"name": "titulo", "type": "STRING", "mode": "NULLABLE", "description": "Título del hilo o conversación"}
+]
+
