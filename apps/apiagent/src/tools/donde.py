@@ -293,7 +293,7 @@ def initialize_destination_explorer():
             return
         genai.configure(api_key=GOOGLE_API_KEY)
         _explorer_llm_model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-preview-05-20",
+            model_name="gemini-2.0-flash",
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE', 'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'},
             system_instruction=system_prompt_explorador
         )

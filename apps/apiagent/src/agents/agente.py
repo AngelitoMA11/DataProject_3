@@ -108,8 +108,8 @@ class Agent:
         self.explorer_tool_name = destination_explorer_tool.name 
 
         try:
-            self._tools_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-05-20", temperature=0.2).bind_tools(tools)
-            print("Orchestrator LLM (gemini-2.5-flash-preview-05-20) initialized and tools bound.")
+            self._tools_llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.2).bind_tools(tools)
+            print("Orchestrator LLM (gemini-2.0-flash) initialized and tools bound.")
         except Exception as e:
             print(f"ERROR initializing orchestrator LLM: {e}")
             raise

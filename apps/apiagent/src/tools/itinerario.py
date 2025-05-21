@@ -121,7 +121,7 @@ Consulta específica para interés_2"""
     try:
         configure_genai(os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-preview-05-20",
+            model_name="gemini-2.0-flash",
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
                              'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'}
         )
@@ -287,7 +287,7 @@ Genera el itinerario ahora."""
     try:
         configure_genai(os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-preview-05-20", 
+            model_name="gemini-2.0-flash", 
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE', 
                              'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'}
         )
@@ -327,7 +327,7 @@ Array JSON de lugares:"""
     try:
         configure_genai(os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash-preview-05-20",
+            model_name="gemini-2.0-flash",
             generation_config={"response_mime_type": "application/json"},
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE', 
                              'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'}
