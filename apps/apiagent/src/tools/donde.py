@@ -5,18 +5,13 @@ import re
 from typing import TypedDict, Annotated, List, Union, Optional
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
-from langchain_core.tools import tool # Importar @tool
+from langchain_core.tools import tool
 import uuid
 import requests
 
-# --- Configuration & Initialization (del código original del explorador) ---
-# Estas deberían cargarse una vez en tu entorno principal.
-# load_dotenv() # Asegúrate que esto se llame una vez en tu aplicación principal
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
-FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY") # Aunque no se usa directamente en el flujo principal
 
-# --- System Prompt del Explorador (sin cambios) ---
 system_prompt_explorador = """
 Rol y Objetivo Primario
 
@@ -70,6 +65,9 @@ Es CRUCIAL que el campo "Destino Elegido" NUNCA esté vacío o sea una frase gen
 Restricciones Clave
 
 Prioridad Absoluta al Destino (CIUDAD): La elección de una CIUDAD específica es tu ÚNICO objetivo. No te desvíes.
+Nunca pidas información adicional: No cuestiones al usuario sobre otros aspectos del viaje (fechas, presupuesto, etc.) a menos que sea absolutamente necesario para definir la CIUDAD.
+No pidas más información: Una vez que el usuario confirme la CIUDAD, no solicites más detalles. Tu trabajo ha terminado.
+No pidas información para el itinerario: No cuestiones sobre itinerarios, actividades o preferencias de viaje. Tu enfoque es la CIUDAD.
 NO generar resumen sin CIUDAD clara: Bajo NINGUNA circunstancia generes el resumen final si el campo "Destino Elegido" no es una CIUDAD concreta y confirmada.
 Confirmación Explícita: Espera a que el usuario confirme explícitamente su elección de CIUDAD antes de finalizar.
 Finalización Inmediata: Una vez que confirmes la elección del usuario, termina la conversación. No sigas preguntando.
@@ -77,7 +75,7 @@ NO recopilar datos adicionales: Una vez elegida la CIUDAD, no pidas más informa
 Formato del Resumen Final: El resumen final DEBE seguir el formato especificado con exactitud.
 """
 
-# --- Helper Functions del Explorador (sin cambios, deben estar definidas aquí) ---
+# --- Helper Functions del Explorador ---
 def extract_final_destination_info(text: str) -> dict:
     data = {"Destino Elegido": "", "intereses": ""} 
     dest_match = re.search(r"Destino Elegido:\s*(.*?)(?=\nIntereses Clave en Destino:|\n\s*$|$)", text, re.IGNORECASE | re.DOTALL)
@@ -89,7 +87,7 @@ def extract_final_destination_info(text: str) -> dict:
 def save_to_json(data: dict, filename="travel_data_discovery_langgraph.json"):
     try:
         with open(filename, "w", encoding="utf-8") as f: json.dump(data, f, indent=4, ensure_ascii=False)
-        print(f"\n[INFO] Explorador: Datos guardados en '{filename}'") # Modificado para clarificar
+        print(f"\n[INFO] Explorador: Datos guardados en '{filename}'")
         return True
     except Exception as e:
         print(f"\n[ERROR] Explorador: No se pudo guardar en JSON: {e}")
@@ -112,12 +110,8 @@ def tavily_search(query: str) -> str:
         return "\n\n".join(output_parts)
     except Exception as e: return f"Error durante la búsqueda con Tavily: {e}"
 
-# Firecrawl no se usa activamente por el explorador, pero se mantiene si es parte de tu código.
-# from firecrawl import FirecrawlApp
-# def firecrawl_scrape(url: str) -> str: ...
-
-# --- LangGraph State Definition del Explorador (sin cambios) ---
-class TravelAgentState(TypedDict): # Este es el estado INTERNO del explorador
+# --- LangGraph State Definition del Explorador ---
+class TravelAgentState(TypedDict):
     messages: Annotated[List[BaseMessage], lambda x, y: x + y]
     user_input: str
     api_configured: bool
@@ -131,20 +125,11 @@ class TravelAgentState(TypedDict): # Este es el estado INTERNO del explorador
 
 # --- Variables Globales para el Grafo y Modelo del Explorador ---
 _explorer_llm_model = None
-_explorer_app = None # Este será el grafo compilado del explorador
+_explorer_app = None
 
-# --- Nodos del Grafo del Explorador ---
-# IMPORTANTE: Debes definir aquí tus funciones:
-# explorador_node (MODIFICADA para usar _explorer_llm_model en lugar de llm_model)
-# web_search_node (puede usar tavily_search directamente)
-# extract_data_node
-# save_data_node
-# route_after_explorador
-# route_after_extraction
 
-# Ejemplo de cómo adaptar explorador_node (DEBES COMPLETAR ESTO CON TU CÓDIGO):
-def explorador_node(state: TravelAgentState) -> dict: # Nombre original mantenido por simplicidad
-    global _explorer_llm_model # Acceder al modelo LLM específico del explorador
+def explorador_node(state: TravelAgentState) -> dict:
+    global _explorer_llm_model
     if not _explorer_llm_model:
         return {"messages": [AIMessage(content="Error: LLM del Explorador no inicializado.")], "summary_detected": False, "search_query": None, "search_results": None, "has_searched_this_invoke": state.get("has_searched_this_invoke", False), "last_executed_search_query": state.get("last_executed_search_query")}
 
@@ -157,7 +142,7 @@ def explorador_node(state: TravelAgentState) -> dict: # Nombre original mantenid
     
     history_for_gemini = []
     for msg in current_messages:
-        if isinstance(msg, SystemMessage) and msg.content != system_prompt_explorador: # Evitar duplicar el prompt del sistema principal del explorador
+        if isinstance(msg, SystemMessage) and msg.content != system_prompt_explorador:
              history_for_gemini.append({'role': 'user', 'parts': [f"[CONTEXTO DEL SISTEMA/HERRAMIENTA]:\n{msg.content}"]})
         elif isinstance(msg, HumanMessage):
             history_for_gemini.append({'role': 'user', 'parts': [msg.content]})
@@ -166,14 +151,8 @@ def explorador_node(state: TravelAgentState) -> dict: # Nombre original mantenid
 
     ai_response_text = ""
     try:
-        # Asegurar que el historial no esté vacío para start_chat
         if not history_for_gemini: 
              last_user_message_content = [state.get("user_input", "Hola")]
-             # Si history_for_gemini está vacío, significa que solo tenemos el mensaje de saludo del sistema
-             # y el primer mensaje del usuario. En este caso, el system_prompt_explorador ya está configurado en el modelo.
-             # El historial para start_chat puede estar vacío o solo contener el último mensaje del usuario si es el primero.
-             # Sin embargo, nuestro estado 'messages' ya contiene el saludo de IA y el primer humano.
-             # El enfoque correcto aquí es pasar el historial como está.
              if len(history_for_gemini) <= 1:
                   chat_session = _explorer_llm_model.start_chat(history=[])
                   last_user_message_content = history_for_gemini[0]['parts'] if history_for_gemini else [state.get("user_input", "Hola")]
@@ -181,7 +160,7 @@ def explorador_node(state: TravelAgentState) -> dict: # Nombre original mantenid
                   chat_session = _explorer_llm_model.start_chat(history=history_for_gemini[:-1])
                   last_user_message_content = history_for_gemini[-1]['parts']
 
-        else: # Hay historial
+        else:
             # Si el último mensaje es del modelo, pero necesitamos enviar uno del usuario (el actual state["user_input"])
             # esto es manejado por cómo se construye `state_for_invoke` en la herramienta.
             # `state_for_invoke["messages"]` ya tendrá el último HumanMessage.
@@ -212,34 +191,34 @@ def explorador_node(state: TravelAgentState) -> dict: # Nombre original mantenid
     
     summary_detected_flag = False
     if "Destino Elegido:" in ai_response_text and "Intereses Clave en Destino:" in ai_response_text:
-        if not search_query_for_tool: # Solo detectar resumen si NO hay una búsqueda pendiente
+        if not search_query_for_tool:
             summary_detected_flag = True
             print("[EXPLORADOR_INFO] Detectado formato de resumen final.")
         else:
             print("[EXPLORADOR_WARNING] Formato de resumen detectado, pero también búsqueda. Ignorando resumen.")
             
-    if summary_detected_flag: # Si es un resumen, no debería haber búsqueda
+    if summary_detected_flag:
         search_query_for_tool = None
 
     return {
-        "messages": [AIMessage(content=ai_response_text)], # Solo la última respuesta de IA
+        "messages": [AIMessage(content=ai_response_text)],
         "summary_detected": summary_detected_flag,
         "search_query": search_query_for_tool,
-        "search_results": None, # Limpiar resultados después de usarlos
-        "has_searched_this_invoke": state.get("has_searched_this_invoke", False), # Se gestiona en web_search_node
-        "last_executed_search_query": state.get("last_executed_search_query") # Se gestiona en web_search_node
+        "search_results": None,
+        "has_searched_this_invoke": state.get("has_searched_this_invoke", False),
+        "last_executed_search_query": state.get("last_executed_search_query")
     }
 
-# --- WEB SEARCH NODE (sin cambios en su lógica interna, solo el print) ---
+# --- WEB SEARCH NODE ---
 def web_search_node(state: TravelAgentState) -> dict:
     query_to_execute = state.get("search_query")
     if not query_to_execute:
         return {"search_results": "No se proporcionó una consulta de búsqueda.", "search_query": None, "has_searched_this_invoke": state.get("has_searched_this_invoke", False), "last_executed_search_query": state.get("last_executed_search_query")}
     print(f"[EXPLORADOR_INFO] Ejecutando búsqueda web para: '{query_to_execute}'")
-    tavily_results_text = tavily_search(query_to_execute) # tavily_search ya tiene su print
+    tavily_results_text = tavily_search(query_to_execute)
     return {"search_results": tavily_results_text, "search_query": None, "has_searched_this_invoke": True, "last_executed_search_query": query_to_execute }
 
-# --- EXTRACT DATA NODE (sin cambios en su lógica interna, solo prints) ---
+# --- EXTRACT DATA NODE ---
 def extract_data_node(state: TravelAgentState) -> dict:
     current_has_searched_flag = state.get("has_searched_this_invoke", False)
     current_last_executed_query = state.get("last_executed_search_query")
@@ -266,10 +245,9 @@ def extract_data_node(state: TravelAgentState) -> dict:
                 final_answer_generated_flag = True
             else:
                 print(f"[EXPLORADOR_WARNING] 'Destino Elegido' ('{destination_value}') inválido en resumen.")
-                state["summary_detected"] = False # Anular detección de resumen
+                state["summary_detected"] = False
     return {"extracted_data": current_extracted_data, "final_answer_generated": final_answer_generated_flag, "summary_detected": state["summary_detected"], "has_searched_this_invoke": current_has_searched_flag,  "last_executed_search_query": current_last_executed_query}
 
-# --- SAVE DATA NODE (sin cambios en su lógica interna, solo prints) ---
 def save_data_node(state: TravelAgentState) -> dict:
     if state["final_answer_generated"] and state["extracted_data"].get("Destino Elegido"):
         if save_to_json(state["extracted_data"]): print("[EXPLORADOR_INFO] Guardado JSON de resumen final exitoso.")
@@ -277,7 +255,7 @@ def save_data_node(state: TravelAgentState) -> dict:
     else: print("[EXPLORADOR_INFO] No se guardaron datos: no es respuesta final o Destino Elegido falta.")
     return {"has_searched_this_invoke": state.get("has_searched_this_invoke", False), "last_executed_search_query": state.get("last_executed_search_query")}
 
-# --- CONDITIONAL EDGES (sin cambios en su lógica interna, solo prints) ---
+# --- CONDITIONAL EDGES ---
 def route_after_explorador(state: TravelAgentState) -> str:
     llm_requested_search = state.get("search_query")
     already_searched_this_invoke = state.get("has_searched_this_invoke", False)
@@ -286,7 +264,7 @@ def route_after_explorador(state: TravelAgentState) -> str:
         return "extract_data"
     if llm_requested_search and not already_searched_this_invoke:
         print("[EXPLORADOR_ROUTE] Explorador -> Perform Search")
-        return "perform_search" # Nombre del nodo en el grafo
+        return "perform_search"
     if llm_requested_search and already_searched_this_invoke:
         print("[EXPLORADOR_ROUTE] Explorador -> END (ya se buscó en este invoke)")
     else:
@@ -315,22 +293,22 @@ def initialize_destination_explorer():
             return
         genai.configure(api_key=GOOGLE_API_KEY)
         _explorer_llm_model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash", # O el modelo que uses
+            model_name="gemini-2.5-flash-preview-05-20",
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE', 'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'},
-            system_instruction=system_prompt_explorador # Prompt del sistema para el explorador
+            system_instruction=system_prompt_explorador
         )
         print("Explorador de Destinos: Modelo Gemini configurado.")
     except Exception as e:
         print(f"Explorador de Destinos: Error configurando Gemini - {e}")
-        _explorer_llm_model = None # Asegurar que esté None si falla
+        _explorer_llm_model = None
         return # No continuar si el LLM falla
 
     # Construir el grafo del explorador
-    workflow = StateGraph(TravelAgentState) # Usar el TravelAgentState del explorador
-    workflow.add_node("explorador", explorador_node) # Tu explorador_node modificado
-    workflow.add_node("web_search", web_search_node) # Tu web_search_node
-    workflow.add_node("extract_data", extract_data_node) # Tu extract_data_node
-    workflow.add_node("save_data", save_data_node) # Tu save_data_node
+    workflow = StateGraph(TravelAgentState)
+    workflow.add_node("explorador", explorador_node)
+    workflow.add_node("web_search", web_search_node)
+    workflow.add_node("extract_data", extract_data_node)
+    workflow.add_node("save_data", save_data_node)
     
     workflow.set_entry_point("explorador")
     
@@ -373,12 +351,12 @@ def destination_explorer_tool(user_input: str, current_explorer_state_messages: 
     para la siguiente llamada, y si la tarea de exploración ha finalizado.
     """
     if _explorer_app is None:
-        initialize_destination_explorer() # Intenta inicializar si no lo está
+        initialize_destination_explorer()
         if _explorer_app is None:
             return {
                 "explorer_response": "Error crítico: El Explorador de Destinos no pudo inicializarse.",
                 "updated_explorer_messages_history": current_explorer_state_messages or [],
-                "is_finished": True, # Marcar como terminado para evitar bucles
+                "is_finished": True,
                 "final_data": None
             }
 
@@ -390,12 +368,11 @@ def destination_explorer_tool(user_input: str, current_explorer_state_messages: 
     if current_explorer_state_messages:
         # Reconstruir los mensajes BaseMessage y otros campos del estado a partir del historial
         for msg_dict in current_explorer_state_messages:
-            if msg_dict.get("role") == "user_internal_context": # Manejar contexto especial de búsqueda
+            if msg_dict.get("role") == "user_internal_context":
                 # Asumimos que este contexto contiene search_results y last_executed_query
                 last_search_results_for_graph = msg_dict.get("search_results_content")
                 last_executed_query_for_graph = msg_dict.get("last_executed_query_content")
                 # No lo añadimos directamente a messages_for_explorer_graph como mensaje visible al LLM
-                # sino que se pasa al estado del grafo.
             elif msg_dict.get("role") == "user":
                 messages_for_explorer_graph.append(HumanMessage(content=msg_dict["parts"][0]))
             elif msg_dict.get("role") == "model":
@@ -408,22 +385,21 @@ def destination_explorer_tool(user_input: str, current_explorer_state_messages: 
     state_for_invoke: TravelAgentState = {
         "messages": messages_for_explorer_graph,
         "user_input": user_input,
-        "api_configured": True, # Asumir que las API Keys están
+        "api_configured": True,
         "summary_detected": False,
-        "extracted_data": {}, # Se determinará dentro del grafo
-        "final_answer_generated": False, # Se determinará dentro del grafo
-        "search_query": None, # El grafo lo determinará
-        "search_results": last_search_results_for_graph, # Pasar resultados si los hubo
-        "has_searched_this_invoke": False, # Se resetea para el nuevo invoke
+        "extracted_data": {},
+        "final_answer_generated": False,
+        "search_query": None,
+        "search_results": last_search_results_for_graph,
+        "has_searched_this_invoke": False,
         "last_executed_search_query": last_executed_query_for_graph
     }
     
-    if not current_explorer_state_messages: # Primera llamada
+    if not current_explorer_state_messages:
         initial_ai_greeting = "¡Hola! Soy tu Explorador de Destinos 🧭. ¿Tienes ganas de viajar pero no sabes a qué CIUDAD? ¡Estás en el lugar correcto! Cuéntame un poco qué te apetece para tu escapada urbana: ¿cultura 🏛️, gastronomía 🍜, vida nocturna 🎉, relax en parques 🌳...? ¡Vamos a descubrir tu ciudad ideal juntos!"
         # Prepend el saludo del explorador para que el LLM lo vea en el primer turno REAL de usuario.
         # El estado messages ya tiene el HumanMessage, así que lo insertamos antes.
         state_for_invoke["messages"].insert(0, AIMessage(content=initial_ai_greeting))
-
 
     try:
         graph_output_state = _explorer_app.invoke(state_for_invoke)
@@ -440,19 +416,19 @@ def destination_explorer_tool(user_input: str, current_explorer_state_messages: 
         if is_finished:
             final_data = graph_output_state.get("extracted_data")
             print(f"[EXPLORER_TOOL] Tarea finalizada. Datos: {final_data}")
-            # El guardado en JSON lo hace el save_data_node del explorador si se alcanza.
 
         # Preparar el historial de mensajes para la siguiente posible llamada a la herramienta
         # Esto debe capturar el estado de la conversación DENTRO del explorador.
         # Usamos el formato de historial de Gemini para simplicidad.
+
         updated_messages_history_for_next_call = []
         raw_messages_from_graph = graph_output_state.get("messages", [])
 
-        # Reconstruimos el historial que el explorador ha acumulado en su estado 'messages'
-        # y lo pasamos para la siguiente llamada.
+        # Reconstruimos el historial que el explorador ha acumulado en su estado 'messages' y lo pasamos para la siguiente llamada.
         # Necesitamos reconstruir desde el graph_output_state['messages'] que es la
         # lista COMPLETA de mensajes que el explorador usó/generó.
-        for msg in raw_messages_from_graph: # Estos son BaseMessage
+
+        for msg in raw_messages_from_graph:
             if isinstance(msg, HumanMessage):
                 updated_messages_history_for_next_call.append({'role': 'user', 'parts': [msg.content]})
             elif isinstance(msg, AIMessage):
@@ -460,10 +436,11 @@ def destination_explorer_tool(user_input: str, current_explorer_state_messages: 
         
         # Si hubo una búsqueda, necesitamos preservar sus resultados para el siguiente turno del explorador
         # dentro del historial que pasamos, de una manera que el explorador_node pueda usarlo.
+        
         if graph_output_state.get("search_results") and graph_output_state.get("last_executed_search_query"):
             updated_messages_history_for_next_call.append({
                 "role": "user_internal_context", # Rol especial para que no se muestre al LLM como mensaje directo
-                "parts": ["Contexto de búsqueda anterior"], # Placeholder
+                "parts": ["Contexto de búsqueda anterior"],
                 "search_results_content": graph_output_state.get("search_results"),
                 "last_executed_search_query_content": graph_output_state.get("last_executed_search_query")
             })
@@ -482,7 +459,7 @@ def destination_explorer_tool(user_input: str, current_explorer_state_messages: 
         traceback.print_exc()
         return {
             "explorer_response": "¡Vaya! El Explorador de Destinos tuvo un problema interno. Quizás necesitemos reiniciar la exploración.",
-            "updated_explorer_messages_history": [], # Resetear historial en error crítico
+            "updated_explorer_messages_history": [],
             "is_finished": True, 
             "final_data": None
         }

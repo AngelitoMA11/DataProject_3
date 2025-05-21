@@ -1,5 +1,3 @@
-# itinerario.py (Versión más cercana a la original, con corrección de stream)
-
 import os
 import google.generativeai as genai
 from firecrawl import FirecrawlApp
@@ -18,13 +16,13 @@ from pydantic import BaseModel, Field
 class ItineraryState(TypedDict):
     traveler_data: Dict[str, Any]
     search_queries: Dict[str, str]
-    firecrawl_results: List[Dict[str, Any]] # Lista de resultados de Firecrawl
-    structured_research_data: Dict[str, Any] # Datos procesados por interés
+    firecrawl_results: List[Dict[str, Any]]
+    structured_research_data: Dict[str, Any]
     initial_itinerary: Optional[str]
     places_to_verify: List[str]
-    verification_results: Dict[str, Any] # Resultados de Tavily
+    verification_results: Dict[str, Any]
     final_itinerary: Optional[str]
-    tavily_api_key: Optional[str] # Clave Tavily
+    tavily_api_key: Optional[str]
     errors: List[str]
 
 def parse_spanish_date(date_str: str) -> datetime.datetime:
@@ -38,7 +36,7 @@ def parse_spanish_date(date_str: str) -> datetime.datetime:
     try:
         return datetime.datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError:
-        pass # Continúa si no es este formato
+        pass
 
     parts = date_str.lower().replace(" de ", " ").split()
     if len(parts) != 3:
@@ -54,7 +52,7 @@ def parse_spanish_date(date_str: str) -> datetime.datetime:
         return datetime.datetime(year, month, day)
     except ValueError as e:
         raise ValueError(f"Error parseando componentes de fecha '{date_str}': {e}")
-    except Exception as e: # Captura más general
+    except Exception as e:
         raise ValueError(f"Error inesperado parseando fecha '{date_str}': {e}")
 
 
@@ -123,15 +121,15 @@ Consulta específica para interés_2"""
     try:
         configure_genai(os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash-latest",
+            model_name="gemini-2.5-flash-preview-05-20",
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
                              'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'}
         )
-        response = model.generate_content(prompt_text) # Se pasa el prompt con el system instruction implícito
+        response = model.generate_content(prompt_text)
         raw_text = response.text
         # Regex mejorada para capturar interés y query
         sections = re.findall(r"##\s*\[([^\]]+)\]\s*\n(.*?)(?=\n\n##|\n*$)", raw_text, re.DOTALL | re.IGNORECASE)
-        search_queries = {interest.strip(): query.strip() for interest, query in sections if query.strip()} # Solo queries no vacías
+        search_queries = {interest.strip(): query.strip() for interest, query in sections if query.strip()}
         if not search_queries and intereses_str:
             first_interest = intereses_str.split(',')[0].strip()
             search_queries = {first_interest: f"información completa sobre {first_interest} y otros intereses como {intereses_str} en {traveler_data['destination']}"}
@@ -140,15 +138,11 @@ Consulta específica para interés_2"""
     except Exception as e:
         error_msg = f"Error en generate_queries_node: {type(e).__name__} {e}"; print(f"      ERROR: {error_msg}")
         errors.append(error_msg)
-        if not search_queries and intereses_str: # Fallback si la generación falla
+        if not search_queries and intereses_str:
              first_interest = intereses_str.split(',')[0].strip()
              search_queries = {first_interest: f"información sobre {intereses_str} en {traveler_data['destination']}"}
     return {"search_queries": search_queries, "errors": errors}
 
-
-# En itinerario.py
-
-# ... (código anterior sin cambios) ...
 
 def perform_research_node(state: ItineraryState) -> Dict[str, Any]:
     print(f"    [ItineraryTool Node DEBUG] Entrando a: perform_research_node con queries: {list(state.get('search_queries', {}).keys())}")
@@ -190,23 +184,22 @@ def perform_research_node(state: ItineraryState) -> Dict[str, Any]:
     print(f"    [ItineraryTool Node DEBUG] Saliendo de: perform_research_node, resultados: {len(firecrawl_results)}")
     return output
 
-# ... (resto de itinerario.py sin cambios) ...
 
 
 def process_research_node(state: ItineraryState) -> Dict[str, Any]:
     print(f"    [ItineraryTool Node DEBUG] Entrando a: process_research_node")
-    firecrawl_results = state.get('firecrawl_results', []) # Esto es una LISTA de resultados por interés
+    firecrawl_results = state.get('firecrawl_results', [])
     errors = state.get('errors', []).copy()
-    structured_data = {} # {interest: {"status": ..., "full_analysis": ..., "sources": [...]}}
+    structured_data = {}
 
     if not firecrawl_results:
         errors.append("No hay resultados de Firecrawl para procesar.")
         return {"structured_research_data": {}, "errors": errors}
 
-    for result_item in firecrawl_results: # Iterar sobre cada resultado de investigación por interés
+    for result_item in firecrawl_results:
         interest = result_item.get("interest", "desconocido")
-        final_analysis = result_item.get("final_analysis") # El resumen de deep_research
-        sources = result_item.get("sources", []) # Lista de fuentes para ESE interés
+        final_analysis = result_item.get("final_analysis")
+        sources = result_item.get("sources", [])
         research_error = result_item.get("error")
 
         # Cada 'interest' tendrá su propia entrada en structured_data
@@ -222,13 +215,13 @@ def process_research_node(state: ItineraryState) -> Dict[str, Any]:
 
 def generate_itinerary_node(state: ItineraryState) -> Dict[str, Any]:
     print(f"    [ItineraryTool Node DEBUG] Entrando a: generate_itinerary_node")
-    structured_data = state.get('structured_research_data', {}) # Ahora es un dict {interes: data}
+    structured_data = state.get('structured_research_data', {})
     traveler_data = state['traveler_data']
     errors = state.get('errors', []).copy()
-    trip_days = 3 # Default
+    trip_days = 3
     dep_date_str, arr_date_str = traveler_data.get("departure_date"), traveler_data.get("arrival_date")
-    flight_details = traveler_data.get("flight_details") # Obtener de traveler_data
-    hotel_details = traveler_data.get("hotel_details")   # Obtener de traveler_data
+    flight_details = traveler_data.get("flight_details")
+    hotel_details = traveler_data.get("hotel_details")
 
     try:
         if dep_date_str and arr_date_str:
@@ -294,7 +287,7 @@ Genera el itinerario ahora."""
     try:
         configure_genai(os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash-latest", 
+            model_name="gemini-2.5-flash-preview-05-20", 
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE', 
                              'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'}
         )
@@ -330,11 +323,11 @@ Itinerario:
 ---
 {initial_itinerary[:4000]} 
 ---
-Array JSON de lugares:""" # Asegurar que hay suficiente contexto del itinerario
+Array JSON de lugares:"""
     try:
         configure_genai(os.getenv("GOOGLE_API_KEY"))
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash-latest",
+            model_name="gemini-2.5-flash-preview-05-20",
             generation_config={"response_mime_type": "application/json"},
             safety_settings={'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE', 'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE', 
                              'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE', 'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE'}
@@ -357,8 +350,8 @@ Array JSON de lugares:""" # Asegurar que hay suficiente contexto del itinerario
             ignore_keywords = ["día", "mañana", "tarde", "noche", "consejo", "almuerzo", "comida", "cena", 
                                "restaurante", "museo", "parque", "jardín", "catedral", "iglesia",
                                "barrio", "calle", "plaza", "avenida", "distrito", "ciudad",
-                               traveler_data.get('destination','').split(',')[0] # Evitar el nombre del destino mismo
-                              ] + [s.strip() for s in traveler_data.get('intereses','').split(',')] # Evitar intereses
+                               traveler_data.get('destination','').split(',')[0]
+                              ] + [s.strip() for s in traveler_data.get('intereses','').split(',')]
             
             filtered_places = []
             for p_raw in raw_places:
@@ -368,7 +361,6 @@ Array JSON de lugares:""" # Asegurar que hay suficiente contexto del itinerario
                 if has_multiple_words and not is_generic:
                     filtered_places.append(p)
             places = list(dict.fromkeys(filtered_places))[:7]
-
 
         print(f"      Lugares extraídos para verificar: {places}")
     except Exception as e: 
@@ -393,10 +385,9 @@ def verify_places_node(state: ItineraryState) -> Dict[str, Any]:
     
     if not places_to_verify:
         print("      INFO: No hay lugares para verificar.")
-        return {"verification_results": {}, "errors": errors} # Devuelve un dict vacío para 'verification_results'
+        return {"verification_results": {}, "errors": errors}
 
     for place in places_to_verify:
-        # Asegurarse de que el destino se pasa correctamente
         destination_name = traveler_data.get('destination', "") 
         print(f"      Verificando '{place}' en '{destination_name}' con Tavily...")
         verification_results[place] = verify_with_tavily(place, destination_name, tavily_api_key)
@@ -430,11 +421,11 @@ def enhance_itinerary_node(state: ItineraryState) -> Dict[str, Any]:
                 verification_section_parts.append("\n")
             elif result_data.get("status") == "no_answer":
                 # Considerar si añadir esto o no. Por ahora, lo omitimos si no hay info positiva.
-                # has_useful_verification_info = True 
+                # has_useful_verification_info = True
                 # verification_section_parts.append(f"### {place}\nNo se encontró información específica sobre horarios o estado actual. Se recomienda verificar directamente con el lugar.\n")
                 pass
 
-    if not has_useful_verification_info: # Si después de filtrar, no queda nada útil
+    if not has_useful_verification_info:
         print("      INFO: No se encontró información de verificación útil (solo 'no_answer' o errores). Devolviendo itinerario inicial.")
         return {"final_itinerary": initial_itinerary, "errors": errors}
 
@@ -526,7 +517,7 @@ def get_compiled_itinerary_app_tool():
 
 class ItineraryGeneratorToolInput(BaseModel):
     destination: str = Field(description="El destino del viaje (ej., 'Lisboa, Portugal').")
-    departure_date: str = Field(description="Fecha de salida en lenguaje natural español (ej., '20 de mayo de 2025' o '2025-05-20').")
+    departure_date: str = Field(description="Fecha de salida en lenguaje natural español (ej., '21 de mayo de 2025' o '2025-05-20').")
     arrival_date: str = Field(description="Fecha de regreso en lenguaje natural español (ej., '28 de mayo de 2025' o '2025-05-28').")
     intereses: str = Field(description="Intereses del viajero, separados por comas si son varios (ej., 'arte callejero, comida local, historia').")
     flight_details: Optional[str] = Field(default=None, description="Detalles del vuelo si ya se conocen (opcional).")
@@ -543,9 +534,10 @@ def comprehensive_itinerary_generator_tool(
     hotel_details: Optional[str] = None
 ) -> str:
     """
+    Use this tool to generate a detailed travel itinerary for a specific destination and dates.
     Generates a comprehensive, personalized travel itinerary using deep web research and optional real-time verification.
     Requires GOOGLE_API_KEY, FIRECRAWL_API_KEY. TAVILY_API_KEY is optional for verification.
-    Input dates should be in Spanish natural language (e.g., '20 de mayo de 2025') or YYYY-MM-DD.
+    Input dates should be in Spanish natural language (e.g., '21 de mayo de 2025') or YYYY-MM-DD.
     Returns a detailed itinerary in Markdown format.
     """
     print(f"🚀 [ItineraryTool] Iniciando para Destino: '{destination}', Fechas: {departure_date} a {arrival_date}, Intereses: '{intereses}'")
@@ -585,7 +577,6 @@ def comprehensive_itinerary_generator_tool(
     print("  [ItineraryTool] Invocando stream del grafo interno...")
     try:
         for event_part in app.stream(initial_state, {"recursion_limit": 25}, stream_mode="values"):
-            # print(f"    [ItineraryTool Stream Event RAW Part] Current State Keys: {list(event_part.keys())}")
             final_graph_state = event_part 
 
             current_errors_in_state = final_graph_state.get('errors', [])

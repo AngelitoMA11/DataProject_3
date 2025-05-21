@@ -10,13 +10,12 @@ import google.auth
 import google.auth.transport.requests
 from google.oauth2 import id_token
 
-from langchain.pydantic_v1 import BaseModel, Field # Sigue usando v1 por ahora si el resto de tu agente lo hace
+from langchain.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import tool
 
 CLOUD_FUNCTION_URL = "https://europe-west1-dataproject3-458310.cloudfunctions.net/hoteles"
 
 def llamar_api_hoteles_cf(payload_data: Dict[str, Any], authenticated: bool = True) -> Optional[Dict[str, Any]]:
-    # ... (sin cambios en esta función) ...
     headers = {
         "Content-Type": "application/json"
     }
@@ -28,7 +27,7 @@ def llamar_api_hoteles_cf(payload_data: Dict[str, Any], authenticated: bool = Tr
             headers["Authorization"] = f"Bearer {identity_token}"
         except Exception as e:
             print(f"[llamar_api_hoteles_cf ERROR] Error obteniendo credenciales o token: {e}")
-            print("[llamar_api_hoteles_cf] Intentando llamar sin autenticación (puede fallar si es requerida).") # No imprimir token aquí
+            print("[llamar_api_hoteles_cf] Intentando llamar sin autenticación (puede fallar si es requerida).")
     try:
         response = requests.post(CLOUD_FUNCTION_URL, json=payload_data, headers=headers, timeout=60)
         if response.status_code == 200:
@@ -56,7 +55,7 @@ def llamar_api_hoteles_cf(payload_data: Dict[str, Any], authenticated: bool = Tr
         return {"error_unexpected": f"Error inesperado al llamar a la API: {str(e)}"}
 
 
-class HotelsFinderCloudInput(BaseModel): # Este es tu esquema de argumentos ahora
+class HotelsFinderCloudInput(BaseModel):
     ciudad: str = Field(description='Location (city) of the hotel. e.g., "París", "Nueva York"')
     fecha_entrada: str = Field(description='Check-in date. The format is YYYY-MM-DD. e.g. "2025-05-21"')
     fecha_vuelta: str = Field(description='Check-out date. The format is YYYY-MM-DD. e.g. "2025-05-25"')
@@ -64,11 +63,7 @@ class HotelsFinderCloudInput(BaseModel): # Este es tu esquema de argumentos ahor
     max_price: Optional[float] = Field(None, description='Maximum total price for the stay. e.g., 250.0')
     valoracion: Optional[float] = Field(None, description='Minimum hotel rating (e.g., 4.0 for 4 stars and above).')
 
-# Ya no necesitas HotelsFinderCloudSchema
-# class HotelsFinderCloudSchema(BaseModel):
-#    params: HotelsFinderCloudInput
-
-@tool(args_schema=HotelsFinderCloudInput) # <--- USA EL ESQUEMA PLANO
+@tool(args_schema=HotelsFinderCloudInput)
 def hotels_finder(
     ciudad: str,
     fecha_entrada: str,
@@ -76,7 +71,7 @@ def hotels_finder(
     adults: Optional[int] = 1,
     max_price: Optional[float] = None,
     valoracion: Optional[float] = None
-) -> List[Dict[str, Any]]: # <--- ARGUMENTOS DESEMPAQUETADOS
+) -> List[Dict[str, Any]]:
     '''
     Finds hotels using a custom Google Cloud Function.
     Provide the city, check-in date (YYYY-MM-DD), and check-out date (YYYY-MM-DD).
@@ -98,7 +93,6 @@ def hotels_finder(
     api_response = llamar_api_hoteles_cf(payload_cf, authenticated=True) 
 
     if api_response is None: return [{"error": "Error crítico al contactar el servicio de hoteles."}]
-    # ... (resto del manejo de errores y procesamiento de api_response sin cambios) ...
     if "error_request" in api_response: return [{"error": api_response["error_request"]}]
     if "error_api" in api_response: return [{"error": api_response["error_api"]}]
     if "error_raw_text" in api_response: return [{"error": api_response["error_raw_text"]}]
@@ -132,7 +126,7 @@ def hotels_finder(
                 if fecha_salida_api: hotel_output["hotel_check_out_date"] = fecha_salida_api
                 if hotel_url: 
                     hotel_output["url"] = hotel_url
-                if hotel_images and isinstance(hotel_images, list): # Asegurarse que 'Imagenes' sea una lista
+                if hotel_images and isinstance(hotel_images, list):
                     hotel_output["images"] = hotel_images
                 processed_hotels.append(hotel_output)
         
