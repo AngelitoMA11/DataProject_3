@@ -1,0 +1,12 @@
+[
+  { "name": "Nombre", "type": "STRING", "mode": "NULLABLE" },
+  { "name": "Latitud", "type": "FLOAT", "mode": "NULLABLE" },
+  { "name": "Longitud", "type": "FLOAT", "mode": "NULLABLE" },
+  { "name": "PrecioTotal", "type": "FLOAT", "mode": "NULLABLE" },
+  { "name": "Puntuación", "type": "FLOAT", "mode": "NULLABLE" },
+  { "name": "Ciudad", "type": "STRING", "mode": "NULLABLE" },
+  { "name": "FechaEntrada", "type": "DATE", "mode": "NULLABLE" },
+  { "name": "FechaSalida", "type": "DATE", "mode": "NULLABLE" },
+  { "name": "URL", "type": "STRING", "mode": "NULLABLE" },
+  { "name": "Imagenes", "type": "STRING", "mode": "REPEATED" }
+]

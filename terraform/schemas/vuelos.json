@@ -1,0 +1,12 @@
+[
+  {"name": "Compañia", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Aerolinea", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "PrecioEur", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "FechaSalida", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "FechaLlegada", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Duración", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Escalas", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "EscalasEn", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "LogoUrl", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "EnlaceCompra", "type": "STRING", "mode": "NULLABLE"}
+]

@@ -1,0 +1,36 @@
+services:
+  apiagent:
+    build:
+      context: ./apps/apiagent
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/apiagent:/app
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - app-network
+    env_file:
+      - .env
+
+  streamlit:
+    build:
+      context: ./apps/streamlit
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./apps/streamlit:/app
+    environment:
+      - PYTHONPATH=/app
+    depends_on:
+      - apiagent
+    networks:
+      - app-network
+    env_file:
+      - .env
+
+networks:
+  app-network:
+    driver: bridge 

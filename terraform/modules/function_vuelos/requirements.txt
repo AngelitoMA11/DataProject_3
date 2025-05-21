@@ -1,0 +1,7 @@
+google-cloud-bigquery
+requests
+serpapi
+flask
+google-cloud-logging==3.8.0
+pyarrow
+google-search-results

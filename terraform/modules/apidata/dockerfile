@@ -1,0 +1,27 @@
+# Imagen base oficial de Python
+FROM python:3.10-slim
+
+# Variables de entorno para evitar archivos pyc y logging con buffer
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Crear directorio de trabajo
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar dependencias e instalarlas
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Copiar el resto del código
+COPY . .
+
+# Exponer el puerto esperado por Cloud Run
+EXPOSE 8080
+
+# Ejecutar la app con Gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:8080", "app:app"]
